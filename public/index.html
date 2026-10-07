@@ -310,36 +310,50 @@
     const list = document.querySelector('#notes');
 
     try {
-      const response = await fetch('/api/notes', { cache: 'no-store' });
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
 
-      if (!response.ok) {
-        throw new Error('공개 자료를 읽을 수 없습니다.');
+        if (!session?.access_token) {
+          list.replaceChildren();
+          return;
+        }
+
+        const response = await fetch('/api/notes', {
+          cache: 'no-store',
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error('로그인 자료를 읽을 수 없습니다.');
+        }
+
+        const data = await response.json();
+
+        if (!Array.isArray(data.notes)) {
+          throw new Error('자료 형식이 맞지 않습니다.');
+        }
+
+        list.replaceChildren(
+          ...data.notes.map(note => {
+            const item = document.createElement('li');
+            const title = document.createElement('strong');
+            const content = document.createElement('span');
+
+            title.textContent = note.title;
+            content.textContent = note.content;
+
+            item.append(title, content);
+            return item;
+          })
+        );
+      } catch (error) {
+        const item = document.createElement('li');
+        item.textContent = error.message;
+        list.replaceChildren(item);
       }
-
-      const data = await response.json();
-
-      if (!Array.isArray(data.notes)) {
-        throw new Error('자료 형식이 맞지 않습니다.');
-      }
-
-      list.replaceChildren(
-        ...data.notes.map(note => {
-          const item = document.createElement('li');
-          const title = document.createElement('strong');
-          const content = document.createElement('span');
-
-          title.textContent = note.title;
-          content.textContent = note.content;
-
-          item.append(title, content);
-          return item;
-        })
-      );
-    } catch (error) {
-      const item = document.createElement('li');
-      item.textContent = error.message;
-      list.replaceChildren(item);
-    }
   </script>
 </body>
 
