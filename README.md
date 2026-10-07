@@ -110,6 +110,99 @@ SUPABASE_SECRET_KEY
 
 2단계에서는 이 API에 별도의 로그인 보호가 없으므로 공개 호출이 가능한 상태입니다. 로그인과 접근 제어는 이후 단계의 작업입니다.
 
+## 3단계 현재 상태
+
+3단계에서는 Supabase Auth를 이용한 실제 로그인과 서버 측 로그인 토큰 검증을 추가했습니다. 로그인한 사용자는 가상 메모를 조회하고 추가·수정·삭제할 수 있습니다.
+
+현재 구조는 다음과 같습니다.
+
+* Supabase Auth의 이메일/비밀번호 로그인을 사용합니다.
+* 브라우저에서는 Supabase 공식 SDK의 `signInWithPassword()`, `signOut()`, `getSession()`, `onAuthStateChange()`를 사용합니다.
+* 브라우저에는 Supabase Project URL과 Publishable Key만 사용합니다.
+* `SUPABASE_SECRET_KEY`는 브라우저 코드에 포함하지 않습니다.
+* `/api/notes`와 `/api/notes/:id`는 요청의 `Authorization: Bearer <access_token>`을 서버에서 검증합니다.
+* 서버의 토큰 검증은 시작 틀에서 제공된 `src/verify-login.mjs`를 사용합니다.
+* `src/verify-login.mjs` 자체는 수정하지 않았습니다.
+* 검증된 로그인 사용자의 UUID를 서버에서 `owner_id`로 사용합니다.
+* 브라우저가 전달하는 `userId`나 `role`을 사용자 식별 정보로 신뢰하지 않습니다.
+* 인증되지 않은 요청이나 토큰 검증에 실패한 요청은 `401 LOGIN_REQUIRED` JSON 응답으로 거부합니다.
+* `/api/notes`는 로그인 사용자의 목록을 반환하고, `POST /api/notes`로 메모를 추가합니다.
+* `/api/notes/:id`에서 단일 메모 조회, 수정, 삭제를 수행합니다.
+* API의 단일 메모 ID는 UUID 형식의 `public_id`를 사용합니다.
+* 기존 2단계 가상 자료 네 건은 유지하기 위해 `owner_id`가 `NULL`인 자료도 로그인 사용자 목록에서 계속 조회할 수 있도록 처리했습니다.
+* 현재 단계에서는 메모 소유권 검증을 의도적으로 적용하지 않았습니다. 따라서 다른 로그인 사용자가 다른 사용자의 메모를 조회·수정·삭제할 수 있으며, 이 문제는 4단계에서 처리할 범위입니다.
+
+3단계 인증 및 메모 API의 주요 파일은 다음과 같습니다.
+
+* `public/index.html`
+  * Supabase Auth 로그인/로그아웃 화면
+  * 로그인 사용자용 메모 추가·수정·삭제 UI
+  * 세션 access token을 API 요청의 Authorization 헤더에 전달
+* `src/verify-login.mjs`
+  * 시작 틀에서 제공된 로그인 토큰 검증 모듈
+  * 3단계에서는 파일 자체를 수정하지 않음
+* `src/notes-api.mjs`
+  * 요청 인증과 Supabase 서버 클라이언트 생성의 공통 처리
+* `api/notes.js`
+  * 로그인 사용자 메모 목록 조회 및 추가
+* `api/notes/[id].js`
+  * 로그인 사용자 메모 단일 조회·수정·삭제
+* `supabase/stage-3.sql`
+  * 기존 `virtual_notes`에 UUID 기반 `public_id`를 추가하는 3단계 DB 변경
+
+3단계의 실제 API 경로는 `aleph.config.json`에 다음과 같이 등록되어 있습니다.
+
+```json
+{
+  "allowedRoutes": [
+    "/api/notes",
+    "/api/notes/:id"
+  ]
+}
+```
+
+로그인 토큰 검증에 사용하는 Supabase issuer, JWKS URL, audience도 `aleph.config.json`의 `identityProvider`에 기록되어 있습니다. 이 설정에는 비밀키가 포함되지 않습니다.
+
+## 3단계 검증 순서
+
+1. Supabase Auth에서 테스트 계정을 준비합니다.
+2. 배포된 `/`에서 테스트 계정으로 로그인합니다.
+3. 로그인 상태에서 기존 가상 자료가 조회되는지 확인합니다.
+4. 메모 추가 UI를 사용하여 새 메모를 추가합니다.
+5. 추가된 메모를 수정하고 변경 내용이 반영되는지 확인합니다.
+6. 수정된 메모를 단일 GET API로 조회하여 `{ id, title, body }` 응답을 확인합니다.
+7. 메모를 삭제합니다.
+8. 삭제된 메모의 단일 GET 요청이 `404 NOTE_NOT_FOUND`를 반환하는지 확인합니다.
+9. 로그아웃 후 메모 관리 UI가 비로그인 상태로 변경되는지 확인합니다.
+10. 비로그인 상태에서 `/api/notes`에 접근하면 `401 LOGIN_REQUIRED` JSON 응답이 반환되는지 확인합니다.
+11. 비로그인 상태에서 POST, PUT, DELETE API도 인증 없이 실행되지 않는지 확인합니다.
+12. 다른 테스트 계정으로 로그인하여 첫 번째 계정의 메모에 접근할 수 있는지 확인합니다. 현재 단계에서는 이 접근이 가능해야 하며, 해당 소유권 검증 부재는 4단계에서 처리할 의도적인 취약점입니다.
+13. 브라우저 코드와 응답에서 `SUPABASE_SECRET_KEY`가 노출되지 않는지 확인합니다.
+14. `/aleph.json`에 접근할 수 있는지 확인합니다.
+15. 첫 화면 응답에 `X-Content-Type-Options: nosniff`가 적용되는지 확인합니다.
+16. `aleph.config.json`의 `step`, `identityProvider`, `allowedRoutes`, `judgeIssuer`가 실제 구현과 일치하는지 확인합니다.
+
+3단계 최종 검증 결과:
+- 로그인 성공 및 로그아웃 상태 변경 확인
+- 비로그인 `/api/notes` 요청에서 `401 LOGIN_REQUIRED` 확인
+- 로그인 상태에서 기존 가상 자료 조회 확인
+- 메모 추가 `201` 확인
+- 메모 수정 `200` 확인
+- 단일 메모 조회 `200` 확인
+- 메모 삭제 `204` 확인
+- 삭제 후 단일 메모 조회 `404 NOTE_NOT_FOUND` 확인
+- 비로그인 POST/PUT/DELETE 요청 거부 확인
+- 다른 사용자에 의한 메모 조회·수정·삭제 가능 상태 확인
+- 서버 전용 `SUPABASE_SECRET_KEY` 브라우저 노출 없음 확인
+- `/aleph.json` 접근 확인
+- 첫 화면 보안 헤더 확인
+- `git diff --check` 통과
+- 3단계 UI CRUD 커밋 `c2bae04`를 PR #9로 merge 완료
+- Vercel 배포 완료
+- 배포 환경에서 최종 CRUD 브라우저 검증 완료
+
+3단계의 소유권 검증 부재는 구현 누락이 아니라 단계별 과제 범위에 따른 의도적인 상태입니다. 4단계에서는 검증된 사용자 ID와 메모의 `owner_id`를 비교하여 다른 사용자의 메모에 대한 조회·수정·삭제를 차단하는 작업을 수행합니다.
+
 ## 다음 단계의 코딩 도구에 전달할 규칙
 
 [AGENTS.md](AGENTS.md)를 먼저 읽히고 한 번에 한 제작 단위만 요청하세요. 이전 단계의 동작과 변경사항을 유지해야 합니다.
