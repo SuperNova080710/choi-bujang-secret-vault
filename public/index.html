@@ -296,11 +296,6 @@
       updateAuthUI(null);
       showSuccess('로그아웃되었습니다.');
     });
-
-    supabase.auth.onAuthStateChange((_event, session) => {
-      updateAuthUI(session?.user ?? null);
-    });
-
     const {
       data: { session },
     } = await supabase.auth.getSession();
@@ -309,7 +304,8 @@
 
     const list = document.querySelector('#notes');
 
-    try {
+    async function loadNotes() {
+      try {
         const {
           data: { session },
         } = await supabase.auth.getSession();
@@ -354,6 +350,14 @@
         item.textContent = error.message;
         list.replaceChildren(item);
       }
+    }
+
+    supabase.auth.onAuthStateChange((_event, session) => {
+      updateAuthUI(session?.user ?? null);
+      void loadNotes();
+    });
+
+    await loadNotes();
   </script>
 </body>
 
