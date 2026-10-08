@@ -36,8 +36,9 @@ export default async function handler(request, response) {
     if (request.method === 'GET') {
         const { data, error } = await supabase
             .from('virtual_notes')
-            .select('public_id, title, content')
+            .select('public_id, title, content, owner_id')
             .eq('public_id', id)
+            .eq('owner_id', authentication.userId)
             .maybeSingle();
 
         if (error) {
@@ -66,6 +67,24 @@ export default async function handler(request, response) {
             return response.status(400).json({ error: 'INVALID_NOTE' });
         }
 
+        const { data: existingNote, error: existingNoteError } = await supabase
+            .from('virtual_notes')
+            .select('public_id, owner_id')
+            .eq('public_id', id)
+            .maybeSingle();
+
+        if (existingNoteError) {
+            return response.status(500).json({ error: 'NOTE_READ_FAILED' });
+        }
+
+        if (!existingNote) {
+            return response.status(404).json({ error: 'NOTE_NOT_FOUND' });
+        }
+
+        if (existingNote.owner_id !== authentication.userId) {
+            return response.status(403).json({ error: 'NOTE_FORBIDDEN' });
+        }
+
         const { data, error } = await supabase
             .from('virtual_notes')
             .update({
@@ -73,7 +92,8 @@ export default async function handler(request, response) {
                 content: body.body,
             })
             .eq('public_id', id)
-            .select('public_id, title, content')
+            .eq('owner_id', authentication.userId)
+            .select('public_id, title, content, owner_id')
             .maybeSingle();
 
         if (error) {
@@ -84,13 +104,36 @@ export default async function handler(request, response) {
             return response.status(404).json({ error: 'NOTE_NOT_FOUND' });
         }
 
+        if (data.owner_id !== authentication.userId) {
+            return response.status(403).json({ error: 'NOTE_FORBIDDEN' });
+        }
+
         return response.status(200).json(toNoteResponse(data));
+    }
+
+    const { data: existingNote, error: existingNoteError } = await supabase
+        .from('virtual_notes')
+        .select('public_id, owner_id')
+        .eq('public_id', id)
+        .maybeSingle();
+
+    if (existingNoteError) {
+        return response.status(500).json({ error: 'NOTE_READ_FAILED' });
+    }
+
+    if (!existingNote) {
+        return response.status(404).json({ error: 'NOTE_NOT_FOUND' });
+    }
+
+    if (existingNote.owner_id !== authentication.userId) {
+        return response.status(403).json({ error: 'NOTE_FORBIDDEN' });
     }
 
     const { data, error } = await supabase
         .from('virtual_notes')
         .delete()
         .eq('public_id', id)
+        .eq('owner_id', authentication.userId)
         .select('public_id')
         .maybeSingle();
 
@@ -104,4 +147,3 @@ export default async function handler(request, response) {
 
     return response.status(204).end();
 }
-
