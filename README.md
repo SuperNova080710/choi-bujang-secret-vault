@@ -241,3 +241,90 @@ git diff
 2단계 작업과 기존 작업을 구분한 뒤 필요한 파일만 수정하거나 되돌립니다. Supabase 데이터베이스를 임의로 삭제하거나 초기화하지 않습니다.
 
 `git reset --hard`를 사용해 전체 작업을 무조건 되돌리지 않습니다.
+
+## 4단계 현재 상태
+
+4단계에서는 로그인한 사용자가 자신의 메모만 읽기·추가·수정·삭제할 수 있도록 API와 DB 양쪽에서 소유권을 강제했습니다.
+
+### 4단계 제작 1: 메모 소유자 연결
+
+* A 테스트 계정을 A 계정으로 사용했습니다.
+* B 테스트 계정을 B 계정으로 사용했습니다.
+* 기존 주요 메모 3건을 A 소유로 연결했습니다.
+* B 소유의 시험 메모 1건을 추가했습니다.
+* 기존 Stage 3 테스트 메모의 소유자도 확인했습니다.
+* `owner_id`가 `NULL`인 `훈련 행정 자료`는 특정 사용자의 소유가 아니므로 4단계 API에서 노출하지 않습니다.
+* 실제 사용자 UUID와 인증 토큰은 저장소에 기록하지 않습니다.
+
+### 4단계 제작 2: API 소유권 검사
+
+API는 URL이나 요청 본문의 사용자 ID를 신뢰하지 않고 서버에서 검증된 로그인 사용자 ID를 사용합니다.
+
+* `GET /api/notes`는 인증된 사용자가 소유한 메모만 반환합니다.
+* `POST /api/notes`는 검증된 사용자 ID를 `owner_id`로 저장합니다.
+* `GET /api/notes/:id`는 `public_id`와 인증된 사용자 ID가 모두 일치하는 메모만 조회합니다.
+* `PUT /api/notes/:id`는 기존 메모의 소유자를 확인한 후 자기 메모만 수정합니다.
+* `PUT`에서는 수정 후 반환된 행의 소유자도 다시 확인합니다.
+* `DELETE /api/notes/:id`는 기존 메모의 소유자를 확인한 후 자기 메모만 삭제합니다.
+* 단일 메모 응답은 `{ id, title, body }` 형식을 유지합니다.
+* 수정 요청 본문은 `{ title, body }` 형식을 유지합니다.
+
+### 4단계 제작 3: DB 최소 권한 및 RLS
+
+`public.virtual_notes`에만 DB 권한과 RLS를 적용했습니다.
+
+* `PUBLIC`, `anon`, `authenticated`의 기존 테이블 권한을 회수했습니다.
+* `authenticated`에 SELECT, INSERT, UPDATE, DELETE만 다시 부여했습니다.
+* `anon`에는 테이블 권한이 없습니다.
+* SELECT는 `auth.uid() = owner_id`인 행만 허용합니다.
+* INSERT는 새 행의 `owner_id`가 `auth.uid()`인 경우만 허용합니다.
+* UPDATE는 기존 행과 변경 후 행의 `owner_id`가 모두 `auth.uid()`인 경우만 허용합니다.
+* DELETE는 `auth.uid() = owner_id`인 행만 허용합니다.
+* 다른 테이블의 권한이나 정책은 변경하지 않았습니다.
+
+적용 후 `information_schema.role_table_grants`와 `has_table_privilege()`로 실제 권한을 확인했습니다.
+
+### 4단계 검증 결과
+
+Stage 4 Preview 배포에서 다음을 확인했습니다.
+
+* A 로그인 → 자신의 메모 목록 조회 정상
+* B 로그인 → 자신의 메모 목록 조회 정상
+* A/B 각자 자신의 메모 CRUD 정상
+* A 계정 → 자신의 `public_id` 직접 GET → HTTP 200
+* B 계정 → A의 `public_id` 직접 GET → HTTP 404
+* B 계정 → A의 메모 PUT → HTTP 403
+* B 계정 → A의 메모 DELETE → HTTP 403
+* `owner_id = NULL`인 메모는 A/B 목록에 노출되지 않음
+* `anon`의 SELECT/INSERT/UPDATE/DELETE 권한은 모두 없음
+* `authenticated`의 SELECT/INSERT/UPDATE/DELETE 권한은 모두 있음
+
+Preview 최초 배포에서는 Vercel Preview 환경에 `SUPABASE_URL`과 `SUPABASE_SECRET_KEY`가 적용되지 않아 `SERVER_CONFIG_ERROR`가 발생했습니다. 두 환경변수를 Production & Preview 환경으로 변경하고 재배포한 후 정상 동작을 확인했습니다.
+
+### 4단계 API 허용 경로
+
+`aleph.config.json`에는 실제 API 메서드와 경로를 다음과 같이 기록했습니다.
+
+```json
+{
+  "allowedRoutes": [
+    "GET /api/notes",
+    "POST /api/notes",
+    "GET /api/notes/:id",
+    "PUT /api/notes/:id",
+    "DELETE /api/notes/:id"
+  ]
+}
+```
+
+### 4단계 저장점
+
+4단계 변경사항을 저장점으로 커밋하기 전에 다음을 확인합니다.
+
+* `git status`와 `git diff`로 변경 범위를 확인합니다.
+* 커밋 대상 파일과 비밀정보·인증 토큰 포함 여부를 검토합니다.
+* `artifacts/submission.json`과 `bundle-notes.json`은 커밋하지 않습니다.
+* Supabase DB 데이터와 기존 작업은 임의로 초기화하거나 삭제하지 않습니다.
+* `npm run bundle` 실행 결과를 확인하고 제출 묶음의 단계 및 커밋 정보를 검증합니다.
+
+4단계 DB RLS 및 최소 권한 정책은 Supabase에서 별도로 적용했습니다. 실제 사용자 UUID와 인증 토큰은 저장소에 기록하지 않습니다.
