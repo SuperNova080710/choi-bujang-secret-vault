@@ -31,7 +31,7 @@ export default async function handler(request, response) {
         const { data, error } = await supabase
             .from('virtual_notes')
             .select('public_id, title, content, owner_id')
-            .or(`owner_id.eq.${authentication.userId},owner_id.is.null`)
+            .eq('owner_id', authentication.userId)
             .order('id', { ascending: true });
 
         if (error) {
