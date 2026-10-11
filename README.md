@@ -328,3 +328,32 @@ Preview 최초 배포에서는 Vercel Preview 환경에 `SUPABASE_URL`과 `SUPAB
 * `npm run bundle` 실행 결과를 확인하고 제출 묶음의 단계 및 커밋 정보를 검증합니다.
 
 4단계 DB RLS 및 최소 권한 정책은 Supabase에서 별도로 적용했습니다. 실제 사용자 UUID와 인증 토큰은 저장소에 기록하지 않습니다.
+
+## 5단계 현재 상태
+
+5단계에서는 브라우저의 메모 데이터 요청을 Vercel 서버 함수로 통일하고, Supabase 원본 REST API를 통한 직접 접근을 차단했습니다.
+
+### 구현 및 설정
+
+- `public/index.html`의 메모 조회·추가·수정·삭제는 `/api/notes` 및 `/api/notes/:id` 서버 함수를 사용합니다.
+- Supabase Auth의 `getSession()`, `signInWithPassword()`, `signOut()` 호출은 유지합니다.
+- 서버 함수는 로그인 토큰을 검증하고, 검증된 사용자 ID를 기준으로 메모 소유권을 확인합니다.
+- `SUPABASE_URL`과 `SUPABASE_SECRET_KEY`는 서버 환경변수로 사용합니다. 서버 전용 키를 브라우저 코드에 포함하지 않습니다.
+- `public.virtual_notes`의 `PUBLIC`, `anon`, `authenticated` 직접 권한을 회수했습니다.
+- RLS는 활성화 상태로 유지했습니다. 서버 함수의 메모 기능은 서버 전용 설정을 이용합니다.
+- `aleph.config.json`의 `step`은 `5`이며, `originalApiUrl`은 `https://foynurtqnrgvsctcvbdr.supabase.co/rest/v1/virtual_notes`입니다.
+- `judgeIssuer`와 기존 `allowedRoutes`는 유지했습니다.
+
+### 5단계 검증 결과
+
+사용자 확인 기준으로 다음 검증을 완료했습니다.
+
+- A 계정의 메모 조회·추가·수정·삭제 정상
+- B 계정의 메모 조회·추가·수정·삭제 정상
+- 비로그인 API 요청은 HTTP 401로 거부
+- 다른 사용자 메모 조회는 HTTP 404로 거부
+- 다른 사용자 메모 수정·삭제는 HTTP 403으로 거부
+- 공개 키를 이용한 원본 REST API 직접 접근 차단
+- DB 직접 권한 회수 후에도 서버 함수의 메모 기능 정상
+
+이 결과는 해당 환경에서 수행한 검증 기록이며, 별도의 심판 점수나 판정 결과를 의미하지 않습니다.
