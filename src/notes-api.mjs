@@ -1,5 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 import config from '../aleph.config.json' with { type: 'json' };
+import {
+    getAccessToken,
+    isSameOriginRequest,
+} from './auth-cookie.mjs';
 import { createLoginVerifier } from './verify-login.mjs';
 
 let verifyLoginAuthorization;
@@ -23,8 +27,47 @@ function getLoginVerifier() {
 
 export async function authenticateRequest(request) {
     try {
+        const authorization = request.headers.authorization;
+        const hasBearerHeader = typeof authorization === 'string'
+            && authorization.length > 0;
+
+        let token;
+
+        if (hasBearerHeader) {
+            // 기존 심사자 JWT 및 Bearer 토큰 검증 경로를 유지합니다.
+            token = authorization;
+        } else {
+            // 쿠키 인증은 상태를 변경하는 요청에서 Origin을 검증합니다.
+            if (
+                ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)
+                && !isSameOriginRequest(request)
+            ) {
+                return {
+                    ok: false,
+                    response: {
+                        status: 403,
+                        body: { error: 'ORIGIN_NOT_ALLOWED' },
+                    },
+                };
+            }
+
+            const accessToken = getAccessToken(request);
+
+            if (!accessToken) {
+                return {
+                    ok: false,
+                    response: {
+                        status: 401,
+                        body: { error: 'LOGIN_REQUIRED' },
+                    },
+                };
+            }
+
+            token = `Bearer ${accessToken}`;
+        }
+
         const verifyLogin = getLoginVerifier();
-        const login = await verifyLogin(request.headers.authorization);
+        const login = await verifyLogin(token);
 
         if (!login) {
             return {
@@ -79,4 +122,3 @@ export function toNoteResponse(note) {
         body: note.content,
     };
 }
-
