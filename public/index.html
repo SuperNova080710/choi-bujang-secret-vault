@@ -260,16 +260,6 @@
   </main>
 
   <script type="module">
-    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm';
-
-    const SUPABASE_URL = 'https://foynurtqnrgvsctcvbdr.supabase.co';
-    const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_yMcUgSUjsfPx3xD51Z0Dpg_Hgp9_HW9';
-
-    const supabase = createClient(
-      SUPABASE_URL,
-      SUPABASE_PUBLISHABLE_KEY
-    );
-
     const loginForm = document.querySelector('#login-form');
     const emailInput = document.querySelector('#email');
     const passwordInput = document.querySelector('#password');
@@ -292,6 +282,7 @@
     const list = document.querySelector('#notes');
 
     let editingNoteId = null;
+    let currentUser = null;
 
     function showError(message) {
       authError.textContent = message;
@@ -353,6 +344,8 @@
     }
 
     function updateAuthUI(user) {
+      currentUser = user;
+
       if (user) {
         authStatus.textContent = `로그인됨: ${user.email}`;
         loginForm.hidden = true;
@@ -367,35 +360,94 @@
       }
     }
 
-    async function getAccessToken() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+    async function parseResponse(response) {
+      try {
+        return await response.json();
+      } catch {
+        return {};
+      }
+    }
 
-      return session?.access_token ?? null;
+    async function checkSession() {
+      const response = await fetch('/api/auth/session', {
+        method: 'GET',
+        credentials: 'same-origin',
+        cache: 'no-store',
+      });
+
+      const data = await parseResponse(response);
+
+      if (response.ok && data.user) {
+        updateAuthUI(data.user);
+        return true;
+      }
+
+      if (response.status === 401) {
+        updateAuthUI(null);
+        return false;
+      }
+
+      throw new Error(data.error ?? '로그인 상태를 확인할 수 없습니다.');
+    }
+
+    async function apiFetch(url, options = {}, retry = true) {
+      const response = await fetch(url, {
+        ...options,
+        credentials: 'same-origin',
+        cache: 'no-store',
+      });
+
+      if (response.status !== 401 || !retry) {
+        return response;
+      }
+
+      const refreshed = await fetch('/api/auth/session', {
+        method: 'GET',
+        credentials: 'same-origin',
+        cache: 'no-store',
+      });
+
+      if (!refreshed.ok) {
+        const data = await parseResponse(refreshed);
+
+        if (refreshed.status === 401) {
+          updateAuthUI(null);
+          throw new Error('로그인이 만료되었습니다. 다시 로그인해 주세요.');
+        }
+
+        throw new Error(data.error ?? '로그인 상태를 갱신할 수 없습니다.');
+      }
+
+      const session = await parseResponse(refreshed);
+
+      if (!session.user) {
+        updateAuthUI(null);
+        throw new Error('로그인이 만료되었습니다. 다시 로그인해 주세요.');
+      }
+
+      updateAuthUI(session.user);
+
+      return apiFetch(url, options, false);
     }
 
     async function loadNotes() {
+      if (!currentUser) {
+        list.replaceChildren(
+          Object.assign(document.createElement('li'), {
+            textContent: '로그인하면 가상 자료를 확인할 수 있습니다.',
+          })
+        );
+        return;
+      }
+
       try {
-        const accessToken = await getAccessToken();
+        const response = await apiFetch('/api/notes');
+        const data = await parseResponse(response);
 
-        if (!accessToken) {
-          list.replaceChildren(
-            Object.assign(document.createElement('li'), {
-              textContent: '로그인하면 가상 자료를 확인할 수 있습니다.',
-            })
-          );
-          return;
+        if (response.status === 401) {
+          updateAuthUI(null);
+          throw new Error('로그인이 필요합니다.');
         }
-
-        const response = await fetch('/api/notes', {
-          cache: 'no-store',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        });
-
-        const data = await response.json();
 
         if (!response.ok) {
           throw new Error(data.error ?? '로그인 자료를 읽을 수 없습니다.');
@@ -429,17 +481,10 @@
             deleteButton.type = 'button';
             deleteButton.className = 'delete-button';
             deleteButton.textContent = '삭제';
-
             deleteButton.addEventListener('click', async () => {
-              const confirmed = window.confirm(
-                '이 메모를 삭제하시겠습니까?'
-              );
-
-              if (!confirmed) {
-                return;
+              if (window.confirm('이 메모를 삭제하시겠습니까?')) {
+                await deleteNote(note.id);
               }
-
-              await deleteNote(note.id);
             });
 
             actions.append(editButton, deleteButton);
@@ -456,25 +501,15 @@
     }
 
     async function createNote(title, body) {
-      const accessToken = await getAccessToken();
-
-      if (!accessToken) {
-        throw new Error('로그인이 필요합니다.');
-      }
-
-      const response = await fetch('/api/notes', {
+      const response = await apiFetch('/api/notes', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({
-          title,
-          body,
-        }),
+        body: JSON.stringify({ title, body }),
       });
 
-      const data = await response.json();
+      const data = await parseResponse(response);
 
       if (!response.ok) {
         throw new Error(data.error ?? '메모 생성에 실패했습니다.');
@@ -484,25 +519,15 @@
     }
 
     async function updateNote(id, title, body) {
-      const accessToken = await getAccessToken();
-
-      if (!accessToken) {
-        throw new Error('로그인이 필요합니다.');
-      }
-
-      const response = await fetch(`/api/notes/${id}`, {
+      const response = await apiFetch(`/api/notes/${encodeURIComponent(id)}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({
-          title,
-          body,
-        }),
+        body: JSON.stringify({ title, body }),
       });
 
-      const data = await response.json();
+      const data = await parseResponse(response);
 
       if (!response.ok) {
         throw new Error(data.error ?? '메모 수정에 실패했습니다.');
@@ -513,21 +538,13 @@
 
     async function deleteNote(id) {
       try {
-        const accessToken = await getAccessToken();
-
-        if (!accessToken) {
-          throw new Error('로그인이 필요합니다.');
-        }
-
-        const response = await fetch(`/api/notes/${id}`, {
-          method: 'DELETE',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        });
+        const response = await apiFetch(
+          `/api/notes/${encodeURIComponent(id)}`,
+          { method: 'DELETE' },
+        );
 
         if (!response.ok) {
-          const data = await response.json();
+          const data = await parseResponse(response);
           throw new Error(data.error ?? '메모 삭제에 실패했습니다.');
         }
 
@@ -542,46 +559,68 @@
     loginForm.addEventListener('submit', async event => {
       event.preventDefault();
       clearMessages();
-
       loginButton.disabled = true;
 
-      const email = emailInput.value.trim();
-      const password = passwordInput.value;
+      try {
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          credentials: 'same-origin',
+          cache: 'no-store',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: emailInput.value.trim(),
+            password: passwordInput.value,
+          }),
+        });
 
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+        const data = await parseResponse(response);
 
-      loginButton.disabled = false;
+        if (!response.ok || !data.user) {
+          throw new Error(
+            response.status === 401
+              ? '이메일 또는 비밀번호가 올바르지 않습니다.'
+              : (data.error ?? '로그인에 실패했습니다.'),
+          );
+        }
 
-      if (error) {
-        showError(`로그인 실패: ${error.message}`);
-        return;
+        updateAuthUI(data.user);
+        passwordInput.value = '';
+        showSuccess('로그인되었습니다.');
+        await loadNotes();
+      } catch (error) {
+        showError(error.message);
+      } finally {
+        loginButton.disabled = false;
       }
-
-      updateAuthUI(data.user);
-      passwordInput.value = '';
-      showSuccess('로그인되었습니다.');
-      await loadNotes();
     });
 
     logoutButton.addEventListener('click', async () => {
       clearMessages();
       logoutButton.disabled = true;
 
-      const { error } = await supabase.auth.signOut();
+      try {
+        const response = await fetch('/api/auth/logout', {
+          method: 'POST',
+          credentials: 'same-origin',
+          cache: 'no-store',
+        });
 
-      logoutButton.disabled = false;
+        const data = await parseResponse(response);
 
-      if (error) {
-        showError(`로그아웃 실패: ${error.message}`);
-        return;
+        if (!response.ok) {
+          throw new Error(data.error ?? '로그아웃에 실패했습니다.');
+        }
+
+        updateAuthUI(null);
+        showSuccess('로그아웃되었습니다.');
+        await loadNotes();
+      } catch (error) {
+        showError(error.message);
+      } finally {
+        logoutButton.disabled = false;
       }
-
-      updateAuthUI(null);
-      showSuccess('로그아웃되었습니다.');
-      await loadNotes();
     });
 
     noteForm.addEventListener('submit', async event => {
@@ -620,16 +659,12 @@
       resetNoteForm();
     });
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    updateAuthUI(session?.user ?? null);
-
-    supabase.auth.onAuthStateChange((_event, session) => {
-      updateAuthUI(session?.user ?? null);
-      void loadNotes();
-    });
+    try {
+      await checkSession();
+    } catch (error) {
+      updateAuthUI(null);
+      showError(error.message);
+    }
 
     await loadNotes();
   </script>
