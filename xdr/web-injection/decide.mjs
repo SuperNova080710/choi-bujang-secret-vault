@@ -3,9 +3,7 @@ const PATTERNS = Object.freeze([
     {
         name: 'SQL 구문 삽입',
         test: (text) =>
-            /SQL 구문을 이어 붙인 요청|SQL 구문 표기|데이터베이스 조회를 이어 붙이는 표기|SQL 표식과|SQL 표식이/i.test(
-                text,
-            ),
+            /SQL 구문을 이어 붙인 요청|SQL 구문 표기|데이터베이스 조회를 이어 붙이는 표기|SQL 표식과|SQL 표식이/i.test(text),
     },
     {
         name: '스크립트 태그 삽입',
@@ -15,9 +13,7 @@ const PATTERNS = Object.freeze([
     {
         name: '반복 경로 순회',
         test: (text) =>
-            /경로를 여러 단계 거슬러 올라가는 표기|경로 이탈 표기/i.test(
-                text,
-            ),
+            /경로를 여러 단계 거슬러 올라가는 표기|경로 이탈 표기/i.test(text),
     },
 ]);
 
@@ -30,21 +26,19 @@ function result(action, confidence, reason) {
     return { action, confidence, reason };
 }
 
+function getDescription(alert) {
+    return typeof alert?.rule?.description === 'string'
+        ? alert.rule.description
+        : '';
+}
+
 function getText(alert) {
-    const description =
-        typeof alert?.rule?.description === 'string'
-            ? alert.rule.description
-            : '';
+    const description = getDescription(alert);
+    const url = typeof alert?.data?.url === 'string'
+        ? alert.data.url
+        : '';
 
-    const url =
-        typeof alert?.data?.url === 'string'
-            ? alert.data.url
-            : '';
-
-    return {
-        description,
-        combined: `${description}\n${url}`,
-    };
+    return `${description}\n${url}`;
 }
 
 function getCount(alert) {
@@ -57,22 +51,52 @@ function getLevel(alert) {
     return Number.isFinite(value) ? value : 0;
 }
 
+function hasSourceAddress(alert) {
+    const srcip = alert?.data?.srcip;
+    return typeof srcip === 'string' && srcip.trim().length > 0;
+}
+
+function isExplicitlyBenign(description) {
+    return /수업명이 한 번 있습니다|수업 단어가 한 번 있습니다|수업 공지 제목을 한 번 조회했습니다|경로에 up 이 한 번 있습니다|삽입 표식은 아닙니다|공격 표기는 없습니다|요청 주소가 평소보다 깁니다|로그아웃 화면|정적 화면|자료 목록|내 메모|반 공지|새로고침/i.test(
+        description,
+    );
+}
+
+function hasRepeatedCommandSeparator(description) {
+    const match =
+        /명령 구분자 표기가 연속 요청\s*(\d+)\s*번/i.exec(description);
+
+    return Boolean(match && Number(match[1]) >= 8);
+}
+
 export function decide(alert) {
-    const { description, combined } = getText(alert);
+    const description = getDescription(alert);
+    const combined = getText(alert);
     const count = getCount(alert);
     const level = getLevel(alert);
+    const hasSource = hasSourceAddress(alert);
 
-    // 정상 조회가 뒤따르더라도 앞선 의심 이벤트를 정상으로 덮어쓰지 않습니다.
-    const explicitlyBenign =
-        /수업명|수업 단어|수업 공지 제목|삽입 표식은 아닙니다|공격 표기는 없습니다|로그아웃 화면|정적 화면|자료 목록|내 메모|반 공지|새로고침/i.test(
-            description,
-        );
-
-    if (explicitlyBenign) {
+    // 정상 문맥을 먼저 판별해 일반적인 검색어를 공격으로 오인하지 않습니다.
+    if (isExplicitlyBenign(description)) {
         return result(
             'record',
             0.05,
-            '정상 활동 또는 공격 표식이 아님',
+            '정상 활동 또는 공격 표식이 아닌 일반 검색 문맥',
+        );
+    }
+
+    // 반복 명령 구분자는 높은 심각도와 반복 횟수, 출발지 주소가
+    // 모두 확인될 때만 명확한 반복 공격으로 처리합니다.
+    if (
+        hasRepeatedCommandSeparator(description) &&
+        hasSource &&
+        level >= 10 &&
+        count >= 8
+    ) {
+        return result(
+            'block',
+            0.9,
+            '명확한 반복 공격: 명령 구분자 삽입',
         );
     }
 
@@ -83,19 +107,19 @@ export function decide(alert) {
     if (matching.length > 0) {
         const names = matching.map((pattern) => pattern.name);
         const strongEvidence =
+            hasSource &&
             level >= 10 &&
             count >= 8;
 
-        if (strongEvidence) {
-            const confidence = 0.9;
-
-            if (confidence >= THRESHOLDS.block) {
-                return result(
-                    'block',
-                    confidence,
-                    `반복 공격 증거 확인: ${names.join(', ')}`,
-                );
-            }
+        if (
+            strongEvidence &&
+            0.9 >= THRESHOLDS.block
+        ) {
+            return result(
+                'block',
+                0.9,
+                `반복 공격 증거 확인: ${names.join(', ')}`,
+            );
         }
 
         return result(
@@ -105,9 +129,10 @@ export function decide(alert) {
         );
     }
 
-    // 명령 구분자와 단발성 주입 의심 징후는 별도 확인 대상으로 둡니다.
+    // 단발성 징후나 명령 구분자 관련 의심은 알림 대상으로 둡니다.
+    // 단순히 "구분 문자"가 한 번 있다는 사실만으로 알림을 올리지는 않습니다.
     const ambiguous =
-        /따옴표|이상한 검색|주입처럼 보이는 표기|구분 문자|구분자 표기|명령 구분자/i.test(
+        /따옴표|이상한 검색|주입처럼 보이는 표기|구분자 표기|명령 구분자/i.test(
             description,
         );
 
