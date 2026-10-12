@@ -1,9 +1,10 @@
-
 const PATTERNS = Object.freeze([
     {
         name: 'SQL 구문 삽입',
         test: (text) =>
-            /SQL 구문을 이어 붙인 요청|SQL 구문 표기|데이터베이스 조회를 이어 붙이는 표기|SQL 표식과|SQL 표식이/i.test(text),
+            /SQL 구문을 이어 붙인 요청|SQL 구문 표기|데이터베이스 조회를 이어 붙이는 표기|SQL 표식과|SQL 표식이/i.test(
+                text,
+            ),
     },
     {
         name: '스크립트 태그 삽입',
@@ -13,7 +14,9 @@ const PATTERNS = Object.freeze([
     {
         name: '반복 경로 순회',
         test: (text) =>
-            /경로를 여러 단계 거슬러 올라가는 표기|경로 이탈 표기/i.test(text),
+            /경로를 여러 단계 거슬러 올라가는 표기|경로 이탈 표기/i.test(
+                text,
+            ),
     },
 ]);
 
@@ -34,37 +37,43 @@ function getDescription(alert) {
 
 function getText(alert) {
     const description = getDescription(alert);
-    const url = typeof alert?.data?.url === 'string'
-        ? alert.data.url
-        : '';
+    const url =
+        typeof alert?.data?.url === 'string'
+            ? alert.data.url
+            : '';
 
     return `${description}\n${url}`;
 }
 
 function getCount(alert) {
     const value = Number(alert?.data?.count);
+
     return Number.isFinite(value) && value >= 0 ? value : 0;
 }
 
 function getLevel(alert) {
     const value = Number(alert?.rule?.level);
+
     return Number.isFinite(value) ? value : 0;
 }
 
 function hasSourceAddress(alert) {
     const srcip = alert?.data?.srcip;
+
     return typeof srcip === 'string' && srcip.trim().length > 0;
 }
 
 function isExplicitlyBenign(description) {
-    return /수업명이 한 번 있습니다|수업 단어가 한 번 있습니다|수업 공지 제목을 한 번 조회했습니다|경로에 up 이 한 번 있습니다|삽입 표식은 아닙니다|공격 표기는 없습니다|로그아웃 화면|정적 화면|자료 목록|내 메모|반 공지|새로고침/i.test(
+    return /수업명이 한 번 있습니다|수업 단어가 한 번 있습니다|수업 공지 제목을 한 번 조회했습니다|경로에 up 이 한 번 있습니다|삽입 표식은 아닙니다|공격 표기는 없습니다|요청 주소가 평소보다 깁니다|로그아웃 화면|정적 화면|자료 목록|내 메모|반 공지|새로고침|이름 검색에 구분 문자가 1건 있습니다/i.test(
         description,
     );
 }
 
 function hasRepeatedCommandSeparator(description) {
     const match =
-        /명령 구분자 표기가 연속 요청\s*(\d+)\s*번/i.exec(description);
+        /명령 구분자 표기가 연속 요청\s*(\d+)\s*번/i.exec(
+            description,
+        );
 
     return Boolean(match && Number(match[1]) >= 8);
 }
@@ -76,17 +85,18 @@ export function decide(alert) {
     const level = getLevel(alert);
     const hasSource = hasSourceAddress(alert);
 
-    // 정상 문맥을 먼저 판별해 일반적인 검색어를 공격으로 오인하지 않습니다.
+    // 정상 문맥을 먼저 판별하여 일반적인 검색어와 정상 활동의
+    // 오탐을 방지합니다.
     if (isExplicitlyBenign(description)) {
         return result(
             'record',
             0.05,
-            '정상 활동 또는 공격 표식이 아닌 일반 검색 문맥',
+            '정상 활동 또는 공격 표식이 아닌 일반 문맥',
         );
     }
 
-    // 반복 명령 구분자는 높은 심각도와 반복 횟수, 출발지 주소가
-    // 모두 확인될 때만 명확한 반복 공격으로 처리합니다.
+    // 반복 명령 구분자는 출발지, 심각도, 반복 횟수가
+    // 모두 확인될 때만 차단합니다.
     if (
         hasRepeatedCommandSeparator(description) &&
         hasSource &&
@@ -100,6 +110,7 @@ export function decide(alert) {
         );
     }
 
+    // 알려진 공격 패턴과 반복 증거를 함께 확인합니다.
     const matching = PATTERNS.filter((pattern) =>
         pattern.test(combined),
     );
@@ -122,6 +133,7 @@ export function decide(alert) {
             );
         }
 
+        // 공격 패턴은 있지만 차단 기준을 충족하지 못하면 알림만 남깁니다.
         return result(
             'alert',
             0.65,
@@ -129,10 +141,9 @@ export function decide(alert) {
         );
     }
 
-    // 단발성 징후나 명령 구분자 관련 의심은 알림 대상으로 둡니다.
-    // 단순히 "구분 문자"가 한 번 있다는 사실만으로 알림을 올리지는 않습니다.
+    // 명확한 공격 패턴은 없지만 단발성 의심 징후가 있으면 알림을 남깁니다.
     const ambiguous =
-        /따옴표|이상한 검색|주입처럼 보이는 표기|구분자 표기|구분 문자|명령 구분자|요청 주소가 평소보다 깁니다/i.test(
+        /따옴표|이상한 검색|주입처럼 보이는 표기|구분자 표기|명령 구분자/i.test(
             description,
         );
 
