@@ -1,0 +1,25 @@
+{
+    "schema": "aleph.xdr.patterns.v1",
+    "moduleKey": "web-injection",
+    "reference": {
+        "id": "T1190",
+        "name": "Exploit Public-Facing Application"
+    },
+    "patterns": [
+        {
+            "name": "SQL 구문 삽입",
+            "condition": "요청에 SQL 구문을 이어 붙이는 공격 표기가 반복적으로 나타나는 경우",
+            "evidence": "SQL 구문이 같은 주소에서 여러 차례 반복됐다는 경보 설명을 근거로 합니다."
+        },
+        {
+            "name": "스크립트 태그 삽입",
+            "condition": "요청에 HTML script 태그 형태의 삽입 표기가 반복적으로 나타나는 경우",
+            "evidence": "스크립트 삽입 표식이 반복됐다는 경보 설명을 근거로 합니다."
+        },
+        {
+            "name": "반복 경로 순회",
+            "condition": "요청 경로에 상위 디렉터리 이동 표기 ../ 가 반복적으로 나타나는 경우",
+            "evidence": "경로를 여러 단계 거슬러 올라가는 표기가 반복됐다는 경보 설명을 근거로 합니다."
+        }
+    ]
+}
