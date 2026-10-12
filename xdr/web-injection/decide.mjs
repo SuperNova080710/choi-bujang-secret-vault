@@ -88,6 +88,18 @@ export function decide(alert) {
     // 정상 문맥을 먼저 판별하여 일반적인 검색어와 정상 활동의
     // 오탐을 방지합니다.
     if (isExplicitlyBenign(description)) {
+        const hasT1190 =
+            Array.isArray(alert?.rule?.mitre) &&
+            alert.rule.mitre.includes('T1190');
+
+        if (hasT1190) {
+            return result(
+                'alert',
+                0.55,
+                'T1190 관련 경보이나 명확한 공격 증거 부족',
+            );
+        }
+
         return result(
             'record',
             0.05,
