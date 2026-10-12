@@ -357,3 +357,36 @@ Preview 최초 배포에서는 Vercel Preview 환경에 `SUPABASE_URL`과 `SUPAB
 - DB 직접 권한 회수 후에도 서버 함수의 메모 기능 정상
 
 이 결과는 해당 환경에서 수행한 검증 기록이며, 별도의 심판 점수나 판정 결과를 의미하지 않습니다.
+
+## XDR-02 웹 주입 공격 탐지
+
+XDR-02는 `xdr/fixtures/web-injection.json`의 가상 경보 26건을 대상으로 웹 주입 공격 징후를 분류하는 실습 모듈입니다. 실제 서비스의 운영 로그를 수집하거나 네트워크 요청을 차단하지 않습니다.
+
+### 구성 파일
+
+- `xdr/web-injection/read-alerts.mjs`: 가상 경보에서 시간, 출발지 IP, 계정, 규칙 수준, 설명을 추출합니다.
+- `xdr/web-injection/patterns.json`: MITRE ATT&CK T1190을 참고한 SQL 구문 삽입, 스크립트 태그 삽입, 반복 경로 순회 패턴 목록입니다.
+- `xdr/web-injection/decide.mjs`: 경보를 `block`, `alert`, `record`로 분류하고 신뢰도와 사유를 반환합니다.
+- `xdr/web-injection/respond.mjs`: 결과를 `xdr/alerts.log`에 JSONL 형식으로 추가합니다. 차단 판정은 실제 차단이 아닌 차단 후보 기록입니다.
+- `xdr/web-injection/result.json`: 실행 결과와 분류 건수를 저장합니다.
+
+### 실행 및 검증
+
+저장소 루트에서 다음 명령을 실행합니다.
+
+```bash
+npm run xdr:run -- web-injection
+```
+
+검증 기준은 다음과 같습니다.
+
+- 시험 경보 26건을 처리합니다.
+- 명확한 공격은 차단 후보로 분류하고, 애매한 요청은 알림으로, 나머지는 기록으로 분류합니다.
+- 정상 계정 이벤트가 차단 후보로 분류되지 않는지 확인합니다.
+- 차단 후보에는 만료 시각이 기록되어야 합니다.
+- 기존 `xdr/alerts.log` 기록을 보존합니다.
+
+
+최근 로컬 시험 결과는 차단 후보 7건, 알림 8건, 기록 11건입니다. 정상 계정 이벤트 차단은 0건이며, 차단 후보 만료 정보 누락도 0건입니다. 이 수치는 해당 가상 fixture에 대한 로컬 시험 결과이며, 실제 운영 환경의 탐지 성능이나 ZTNA 차단을 입증하지 않습니다.
+
+주의: `node xdr/web-injection/respond.mjs`는 공유 로그에 새 기록을 추가합니다. 재실행하면 동일한 경보 ID의 기록이 추가될 수 있습니다.
