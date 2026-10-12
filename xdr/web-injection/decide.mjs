@@ -3,7 +3,7 @@ const PATTERNS = Object.freeze([
     {
         name: 'SQL 구문 삽입',
         test: (text) =>
-            /SQL 구문을 이어 붙인 요청|SQL 구문 표기|데이터베이스 조회를 이어 붙이는 표기|SQL 표식과/i.test(
+            /SQL 구문을 이어 붙인 요청|SQL 구문 표기|데이터베이스 조회를 이어 붙이는 표기|SQL 표식과|SQL 표식이/i.test(
                 text,
             ),
     },
@@ -73,23 +73,6 @@ export function decide(alert) {
             'record',
             0.05,
             '정상 활동 또는 공격 표식이 아님',
-        );
-    }
-
-    // 연속 요청에서 명령 구분자가 반복되면 명확한 반복 주입 후보로 취급합니다.
-    const repeatedCommandSeparator =
-        /명령 구분자 표기가 연속 요청\s*(\d+)\s*번/i.exec(description);
-
-    if (
-        repeatedCommandSeparator &&
-        Number(repeatedCommandSeparator[1]) >= 8 &&
-        level >= 10 &&
-        count >= 8
-    ) {
-        return result(
-            'block',
-            0.9,
-            '명확한 반복 공격: 명령 구분자 삽입',
         );
     }
 
