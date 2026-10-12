@@ -30,13 +30,13 @@
       "alertId": "wi-05",
       "action": "block",
       "confidence": 0.9,
-      "reason": "반복 공격 증거 확인: 스크립트 태그 삽입"
+      "reason": "반복 공격 증거 확인: SQL 구문 삽입, 스크립트 태그 삽입"
     },
     {
       "alertId": "wi-06",
-      "action": "block",
-      "confidence": 0.9,
-      "reason": "명확한 반복 공격: 명령 구분자 삽입"
+      "action": "alert",
+      "confidence": 0.6,
+      "reason": "애매한 주입 의심 징후: 추가 확인 필요"
     },
     {
       "alertId": "wi-07",
@@ -160,8 +160,8 @@
     }
   ],
   "counts": {
-    "block": 8,
-    "alert": 4,
+    "block": 7,
+    "alert": 5,
     "record": 14
   }
 }
