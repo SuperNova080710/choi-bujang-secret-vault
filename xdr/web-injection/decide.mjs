@@ -57,7 +57,7 @@ function hasSourceAddress(alert) {
 }
 
 function isExplicitlyBenign(description) {
-    return /수업명이 한 번 있습니다|수업 단어가 한 번 있습니다|수업 공지 제목을 한 번 조회했습니다|경로에 up 이 한 번 있습니다|삽입 표식은 아닙니다|로그아웃 화면|정적 화면|자료 목록|내 메모|반 공지|새로고침/i.test(
+    return /수업명이 한 번 있습니다|수업 단어가 한 번 있습니다|수업 공지 제목을 한 번 조회했습니다|경로에 up 이 한 번 있습니다|삽입 표식은 아닙니다|공격 표기는 없습니다|로그아웃 화면|정적 화면|자료 목록|내 메모|반 공지|새로고침/i.test(
         description,
     );
 }
