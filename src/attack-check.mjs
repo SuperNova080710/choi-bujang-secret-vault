@@ -1,7 +1,7 @@
 // The student changes this check as each stage adds an attack to the same app.
 // Never return tokens, private keys, real names, or note bodies.
 export async function runAttackChecks(config) {
-  if (![3, 4, 5].includes(config.step)) {
+  if (![3, 4, 5, 6].includes(config.step)) {
     throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   }
 
@@ -278,6 +278,59 @@ export async function runAttackChecks(config) {
       attackId: 'public_key_direct_rest_read',
       expected: '공개 Publishable Key로 원본 virtual_notes REST API의 직접 조회가 거부되어야 함',
       observed: `원본 REST 직접 조회가 거부됨 (HTTP ${directApiStatus})`,
+    });
+  }
+
+  // 6단계: 등록된 기기만 허용되는지 판정기 자체를 검사
+  if (config.step >= 6) {
+    const { decide } = await import('./decider.mjs');
+
+    const registeredRequest = {
+      schema: 'aleph.decision.v1',
+      requestId: crypto.randomUUID(),
+      deviceRegistered: true,
+    };
+
+    const registeredDecision = await decide(registeredRequest);
+
+    const registeredAllowed =
+      registeredDecision?.schema === 'aleph.decision.v1' &&
+      registeredDecision.requestId === registeredRequest.requestId &&
+      registeredDecision.decision === 'allow' &&
+      registeredDecision.reasonCode === 'approved' &&
+      Array.isArray(registeredDecision.ruleIds) &&
+      registeredDecision.ruleIds.includes('device_registered');
+
+    results.push({
+      attackId: 'registered_device_allowed',
+      expected: '등록된 기기의 요청은 allow로 판정되어야 함',
+      observed: registeredAllowed
+        ? '등록된 기기의 요청이 allow로 판정됨'
+        : '등록된 기기의 요청이 예상한 형식과 결과로 판정되지 않음',
+    });
+
+    const unregisteredRequest = {
+      ...registeredRequest,
+      requestId: crypto.randomUUID(),
+      deviceRegistered: false,
+    };
+
+    const unregisteredDecision = await decide(unregisteredRequest);
+
+    const unregisteredDenied =
+      unregisteredDecision?.schema === 'aleph.decision.v1' &&
+      unregisteredDecision.requestId === unregisteredRequest.requestId &&
+      unregisteredDecision.decision === 'deny' &&
+      unregisteredDecision.reasonCode === 'device_not_registered' &&
+      Array.isArray(unregisteredDecision.ruleIds) &&
+      unregisteredDecision.ruleIds.includes('device_registered');
+
+    results.push({
+      attackId: 'unregistered_device_denied',
+      expected: '미등록 기기의 요청은 device_not_registered 사유로 거부되어야 함',
+      observed: unregisteredDenied
+        ? '미등록 기기의 요청이 device_not_registered 사유로 거부됨'
+        : '미등록 기기의 요청이 예상한 거부 결과로 판정되지 않음',
     });
   }
 
