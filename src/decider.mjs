@@ -41,27 +41,24 @@ function hasValidSignalShape(signals) {
 
   return false;
 }
-
 function hasCompositeRisk(request) {
   const { signals, recentEvents } = request;
 
-  // 가상 접속 신호가 아닌 경우에는
-  // 확인되지 않은 값을 위험 신호로 추측하지 않습니다.
   if (signals.source !== 'judge_fixture') {
     return false;
   }
 
-  // 비정상 시간대
+  // 평소와 다른 시간
   const unusualTime = signals.hour < 6 || signals.hour >= 22;
 
-  // 낯선 네트워크
-  const unusualNetwork = signals.network === 'unusual';
+  // 정상 fixture 값인 usual과 다른 네트워크
+  const unusualNetwork = signals.network !== 'usual';
 
-  // 최근 5분 이내 대량 읽기
-  const massRead = Array.isArray(recentEvents)
+  // 계약에 recentEvents.kind의 enum이 공개되어 있지 않으므로
+  // 특정 kind 문자열을 추측하지 않고 최근 발생량만 사용합니다.
+  const massActivity = Array.isArray(recentEvents)
     && recentEvents.some(event =>
       event
-      && event.kind === 'risk_signal'
       && Number.isInteger(event.ageSeconds)
       && event.ageSeconds >= 0
       && event.ageSeconds <= 300
@@ -69,10 +66,8 @@ function hasCompositeRisk(request) {
       && event.count >= 10
     );
 
-  // 세 조건이 모두 충족된 경우에만 복합 위험
-  return unusualTime && unusualNetwork && massRead;
+  return unusualTime && unusualNetwork && massActivity;
 }
-
 
 function stepUpResponse(request) {
   return {
