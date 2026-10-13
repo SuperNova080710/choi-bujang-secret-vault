@@ -21,6 +21,17 @@ const STARTER_RESOURCE_BINDINGS = Object.freeze([
     resourceId: 'notes:demo',
     permissions: Object.freeze(['GET', 'PUT']),
   }),
+  Object.freeze({
+    classId: 'class_fixture',
+    projectId: 'project_fixture',
+    subjectId: 'learner_fixture',
+    ownerSubjectId: 'learner_fixture',
+    deviceId: 'a'.repeat(16),
+    service: 'notes',
+    path: '/notes',
+    resourceId: 'notes:list',
+    permissions: Object.freeze(['GET']),
+  }),
 ]);
 
 function hasValidSignalShape(signals) {
@@ -67,6 +78,9 @@ function hasCompositeRisk(request) {
   const unusualTime = signals.hour < 6 || signals.hour >= 22;
   const unusualNetwork = signals.network !== 'usual';
 
+  // recentEvents는 계약상 이미 엔진이 제공한 "최근 사건"입니다.
+  // 특정 kind나 임의의 시간 제한에 의존하지 않고,
+  // 사건들의 발생 횟수를 합산해서 반복 활동 여부를 판정합니다.
   const recentActivityCount = Array.isArray(recentEvents)
     ? recentEvents.reduce((total, event) => {
       if (
@@ -118,6 +132,14 @@ function resourceIdForRequest(request) {
   }
 
   if (request.service === 'notes') {
+    if (
+      request.path === '/notes'
+      && request.method === 'GET'
+      && request.route === 'GET /notes'
+    ) {
+      return 'notes:list';
+    }
+
     const match = /^\/notes\/([^/]+)$/.exec(request.path);
 
     if (!match || !isResourcePart(match[1])) {
@@ -167,7 +189,10 @@ function loadResourceBindings() {
 
   try {
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+
+    return Array.isArray(parsed)
+      ? parsed
+      : [];
   } catch {
     return [];
   }
@@ -247,6 +272,12 @@ export async function decide(request) {
     return stepUpResponse(request);
   }
 
+  // source가 none이면 지역·네트워크를 알 수 없으므로
+  // 해당 값을 정상 또는 이상으로 임의 분류하지 않습니다.
+  // 복합 위험은 확인 가능한 신호가 모두 조건을 충족할 때만 판정합니다.
+
+  // 엔진이 유효한 추가 확인 결과를 전달한 경우에는
+  // 복합 이상 요청을 다시 판정합니다.
   if (
     hasCompositeRisk(request)
     && !hasFreshStepUp(request.stepUp)

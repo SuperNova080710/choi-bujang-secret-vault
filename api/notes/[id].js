@@ -49,6 +49,10 @@ export default async function handler(request, response) {
             return response.status(404).json({ error: 'NOTE_NOT_FOUND' });
         }
 
+        if (data.owner_id !== authentication.userId) {
+            return response.status(404).json({ error: 'NOTE_NOT_FOUND' });
+        }
+
         return response.status(200).json(toNoteResponse(data));
     }
 
