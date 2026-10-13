@@ -38,6 +38,13 @@ export default async function handler(request, response) {
             return response.status(500).json({ error: 'NOTES_READ_FAILED' });
         }
 
+        if (
+            !Array.isArray(data)
+            || data.some(note => note.owner_id !== authentication.userId)
+        ) {
+            return response.status(403).json({ error: 'NOTE_FORBIDDEN' });
+        }
+
         return response.status(200).json({
             notes: data.map(toNoteResponse),
         });

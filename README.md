@@ -457,7 +457,7 @@ npm run decider:test
   - 엔진이 `stepUp.verified: true`와 0~900 범위의 정수 `authAgeSeconds`를 전달하면 재확인된 요청으로 다시 판정해 `allow`합니다.
   - 응답은 기존의 `schema`, `requestId`, `decision`, `reasonCode`, `ruleIds` 5개 필드를 유지합니다.
 - `scripts/decider-test.mjs`
-  - 정상 가상 요청, 미등록 기기, 복합 이상 접속, `verified` 값만 전달한 요청을 검사합니다.
+  - 정상 가상 요청, 미등록 기기, 복합 이상 접속, 유효한 추가 확인을 마친 복합 이상 요청을 검사합니다.
 - `scripts/fixture-7.mjs`
   - 정상 사건과 복합 이상 사건의 가상 판정을 확인합니다.
 - `src/attack-check.mjs`
@@ -475,7 +475,7 @@ npm run fixture:7
 - 등록 기기의 정상 가상 요청: `allow`
 - 미등록 기기의 가상 요청: `deny`
 - 복합 이상 가상 요청: `step_up`
-- 재인증 검증 계약 없이 `verified: true`만 전달한 복합 이상 요청: `step_up`
+- 엔진이 `stepUp.verified: true`와 0~900 범위의 정수 `authAgeSeconds`를 전달한 재확인 복합 이상 요청: `allow`
 
 이 결과는 로컬 가상 테스트 결과입니다. 실제 서비스의 재인증 연동, 민감 자료 접근 차단 또는 심판 통과를 증명하지 않습니다.
 
@@ -500,3 +500,233 @@ npm run fixture:7
 - 번들 결과에 실제 토큰, 비밀번호, 개인 키 또는 개인정보가 포함되지 않는지 확인합니다.
 - `bundle-notes.json`과 `artifacts/submission.json`은 Git 커밋에 포함하지 않습니다.
 - 배포 및 심판 결과는 실제 실행 결과를 확인한 뒤에만 기록합니다.
+
+## 8단계 현재 상태 — 자료마다 갈 수 있는 구역을 나눕니다
+
+8단계에서는 로그인 여부만 확인하는 것에서 더 나아가 사용자·기기·동작·정확한 자원 경로를 함께 확인하고, 실제 자료 API에서도 저장된 소유자와 서버 권한을 다시 대조합니다.
+
+기존 1~7단계의 로그인, 소유권 보호, 원본 REST 보호, 등록 기기 판정, 복합 이상 접속 추가 확인 규칙은 유지합니다.
+
+### 자원 ID
+
+`src/resource-id.mjs`에서 메모와 강사 공지를 서로 다른 자원 영역으로 구분합니다.
+
+- 개별 메모: `notes:<id>`
+- 본인 메모 목록: `notes:list`
+- 강사 공지: `announcements:<id>`
+
+기존 메모 데이터와 `/api/notes`, `/api/notes/:id` 주소는 변경하지 않았습니다. 화면 메뉴도 이번 단계에서 변경하지 않았습니다.
+
+자원 ID는 브라우저가 임의로 전달하는 `role`, `userId` 또는 소유자 값에서 만들지 않습니다.
+
+### `resource_scope` 판정 규칙
+
+`src/decider.mjs`의 `RULE_IDS`에는 기존 규칙과 함께 다음 규칙이 등록되어 있습니다.
+
+- `device_registered`
+- `step_up_required`
+- `resource_scope`
+
+판정 순서는 다음과 같습니다.
+
+1. 등록되지 않은 기기는 `device_registered` 규칙으로 거부합니다.
+2. 신호 구조가 유효하지 않거나 추가 확인이 필요한 복합 이상 요청은 `step_up_required` 규칙으로 다시 확인을 요구합니다.
+3. 위 검사를 통과한 요청은 `resource_scope` 규칙에서 사용자·기기·메서드·정확한 자원 경로를 확인합니다.
+4. 허용된 자원 연결과 일치하지 않으면 `deny / resource_not_allowed`로 거부합니다.
+
+자원 판정에는 SDP 엔진이 확인한 다음 요청 값을 사용합니다.
+
+- `classId`
+- `projectId`
+- `subjectId`
+- `deviceId`
+- `service`
+- `method`
+- `path`
+- `route`
+- `queryLength`
+
+판정기 계약에 없는 `role`, `ownerId`, Supabase 사용자 UUID 등의 필드를 요청에 새로 만들지 않습니다.
+
+`subjectId`는 엔진이 제공하는 가명 주체이므로 Supabase Auth의 사용자 UUID와 직접 비교하지 않습니다.
+
+### 정확한 경로 판정
+
+메모 단건은 정확한 `/notes/:id` 형태에서만 판정합니다.
+
+현재 Stage 8 가상 연결에서 허용하는 정상 예시는 다음과 같습니다.
+
+- `GET /notes/demo`
+- `PUT /notes/demo`
+- `GET /notes`
+
+본인 메모 목록은 `notes:list` 자원으로 별도 구분합니다.
+
+다음과 같은 요청은 자원으로 인정하지 않습니다.
+
+- `/notes/export`
+- `/notes/:id/extra`와 같은 추가 깊이 경로
+- 허용하지 않은 메서드
+- 경로와 `route`가 서로 다른 요청
+- 쿼리를 이용해 다른 기능을 선택하는 요청
+- 서버 자원 연결과 주체·기기·경로가 일치하지 않는 요청
+
+따라서 `:id`와 같은 깊이에 `export` 같은 기능 이름을 넣어 자원 판정을 우회하지 못하도록 합니다.
+
+### 서버 자원 연결
+
+Stage 8 판정기는 자원 소유권과 강사 권한을 클라이언트 입력에서 가져오지 않습니다.
+
+기본 가상 판정 연결에는 `learner_fixture`, 등록 기기, `notes:demo`, `notes:list` 관계만 포함되어 있습니다. 이는 Stage 8 로컬 판정과 제공된 fixture를 위한 연결입니다.
+
+별도의 운영 자원 연결이 필요한 환경에서는 서버의 `ALEPH_RESOURCE_BINDINGS` JSON 설정으로 확인된 주체·기기·서비스·경로·자원·권한을 연결할 수 있습니다.
+
+강사 공지 수정은 자원 연결에 서버 측 `instructor: true`가 확인되어야 판정기에서 허용될 수 있습니다.
+
+브라우저가 요청 본문에 다음과 같이 전달하더라도 강사 권한의 근거로 사용하지 않습니다.
+
+```json
+{
+  "role": "instructor"
+}
+```
+
+### 메모 API의 소유자 재검증
+
+`api/notes.js`의 목록 조회는 기존과 같이 검증된 로그인 사용자의 `owner_id`만 조회합니다.
+
+8단계에서는 조회 결과를 반환하기 직전에도 모든 행의 저장된 `owner_id`가 검증된 `authentication.userId`와 같은지 다시 확인합니다.
+
+따라서 목록 쿼리 조건이 잘못 변경되거나 예상하지 못한 행이 반환되더라도 다른 사용자의 자료를 그대로 응답하지 않습니다.
+
+`api/notes/[id].js`의 단건 GET도 다음 두 단계를 모두 사용합니다.
+
+1. DB 조회 단계에서 `public_id`와 로그인 사용자의 `owner_id`를 함께 조건으로 사용합니다.
+2. 조회된 행의 실제 `owner_id`를 `authentication.userId`와 다시 비교합니다.
+
+소유자가 일치하지 않으면 다른 메모의 존재 여부를 별도로 노출하지 않도록 `404 NOTE_NOT_FOUND`로 처리합니다.
+
+기존 PUT·DELETE의 저장된 `owner_id` 비교와 소유자 조건 쿼리도 유지합니다.
+
+### 강사 공지 수정 API
+
+8단계에서 다음 서버 API를 추가했습니다.
+
+```text
+PUT /api/announcements/:id
+```
+
+`aleph.config.json`의 `allowedRoutes`에도 같은 경로를 등록했습니다.
+
+공지 수정 API는 다음 순서로 권한을 확인합니다.
+
+1. 기존 서버 로그인 검증으로 실제 로그인 사용자를 확인합니다.
+2. 요청 본문의 `role`, `userId` 또는 화면 메뉴 상태를 권한 근거로 사용하지 않습니다.
+3. 서버의 `vault_instructors.user_id`와 검증된 `authentication.userId`를 비교합니다.
+4. 강사 권한 조회 실패, 권한 없음 또는 사용자 불일치는 `403 ANNOUNCEMENT_FORBIDDEN`으로 거부합니다.
+5. 강사 권한이 확인된 경우에만 `vault_announcements`의 지정된 공지를 수정합니다.
+
+요청 본문에는 `title`, `body`만 허용합니다. `role`과 같은 추가 필드를 넣어 권한을 위조하려는 요청은 유효한 공지 수정 본문으로 인정하지 않습니다.
+
+### 강사 공지 기능의 현재 제한
+
+현재 저장소에는 `vault_instructors`와 `vault_announcements` 테이블을 생성하거나 실제 강사를 배정하는 DB 변경 작업을 포함하지 않았습니다.
+
+따라서 해당 서버 권한 데이터가 준비되지 않은 환경에서는 공지 수정 요청이 기본 거부됩니다.
+
+현재 확인한 것은 다음 범위입니다.
+
+- 클라이언트 `role`을 권한 근거로 사용하지 않음
+- 검증된 로그인 사용자 ID를 서버 강사 권한과 대조하도록 구현
+- 강사 권한 조회 실패 시 기본 거부
+- 일반 학생의 공지 수정에 대한 판정기 자원 구역 거부
+
+실제 강사 계정의 공지 수정 성공은 DB 권한 데이터와 공지 자료가 준비된 운영 환경에서 별도로 확인해야 합니다.
+
+### 8단계 로컬 판정 확인
+
+기존 7단계 회귀 검사를 다시 실행했습니다.
+
+`npm run fixture:7`:
+
+```text
+정상 사건: allow
+복합 이상 사건: step_up
+```
+
+`npm run decider:test`:
+
+```text
+통과 · 등록 기기의 정상 요청
+통과 · 미등록 기기의 가상 요청
+통과 · 복합 이상 접속
+통과 · 다시 확인한 복합 이상 접속
+```
+
+추가한 Stage 8 자원 구역 가상 판정에서는 다음 결과를 확인했습니다.
+
+```text
+본인 메모 목록: allow
+다른 주체 목록: deny
+기능 경로: deny
+```
+
+또한 별도 직접 판정에서 다음 조건을 확인했습니다.
+
+- 본인 메모 GET: `allow`
+- 본인 메모 PUT: `allow`
+- 다른 주체의 본인 메모 요청: `deny`
+- 쿼리가 포함된 자원 요청: `deny`
+- `export` 기능 이름 경로: `deny`
+- 클라이언트가 강사 역할을 주장하는 것만으로는 공지 수정 권한을 얻지 못함
+- 서버 자원 연결에 `instructor: true`가 있는 경우에만 강사 공지 자원 권한을 인정할 수 있음
+
+이 결과는 모두 로컬 가상 판정 결과이며 실제 심판 통과를 의미하지 않습니다.
+
+### 8단계 직접 공격 점검
+
+`src/attack-check.mjs`는 8단계를 인식하도록 확장했습니다.
+
+기존 비로그인 API, 정적 자료, 원본 Supabase REST, 등록 기기, 복합 이상 접속 검사를 유지하면서 다음 Stage 8 가상 검사를 추가했습니다.
+
+- 본인 메모 단건·목록 정상 허용
+- 다른 주체의 메모 단건·목록 거부
+- `/notes/export`와 같은 기능 경로 거부
+- 강사 권한 연결이 없는 학생의 공지 수정 거부
+
+기존 6·7단계 자기점검 요청에도 현재 판정기 계약의 사용자·기기·서비스·경로 정보를 포함하여 `resource_scope` 추가 이후에도 이전 단계 판정을 계속 검증할 수 있도록 했습니다.
+
+`src/attack-check.mjs`의 Stage 8 전체 실행 결과는 최종 저장점 커밋 후 `npm run bundle` 과정에서 확인합니다.
+
+### 제출 설정
+
+`aleph.config.json`은 8단계 구현에 맞춰 다음 상태로 변경합니다.
+
+- `step`: `8`
+- 기존 `judgeIssuer` 유지
+- 기존 `identityProvider` 유지
+- 기존 `originalApiUrl` 유지
+- 기존 메모 API 경로 유지
+- `PUT /api/announcements/:id` 추가
+
+`resource_scope` 규칙은 `package/POLICIES.md`에도 실제 구현 규칙으로 기록합니다.
+
+### 현재 검증 상태
+
+현재까지 확인된 상태를 구분하면 다음과 같습니다.
+
+- 자원 ID 구분 구현: 완료
+- `resource_scope` 판정 구현: 완료
+- 기존 6·7단계 로컬 회귀 테스트: 통과
+- Stage 8 본인 목록/타 주체 목록/기능 경로 로컬 판정: 통과
+- 메모 API 소유자 반환 전 재검증: 구현 완료
+- 강사 공지 서버 권한 검증 API: 구현 완료
+- `node --check` 정적 구문 검사: 통과
+- `git diff --check`: 통과
+- 실제 Stage 8 운영 배포: 아직 확인하지 않음
+- 실제 A/B 계정 간 운영 API 구역 차단: 아직 확인하지 않음
+- 실제 강사 계정 공지 수정: 아직 확인하지 않음
+- Stage 8 `npm run bundle`: 아직 실행하지 않음
+- Stage 8 심판 판정: 아직 제출하지 않음
+
+로컬 테스트, 직접 점검 및 제출 묶음 생성 성공은 각각 별개의 검증 단계이며 심판 통과와 동일하게 취급하지 않습니다.

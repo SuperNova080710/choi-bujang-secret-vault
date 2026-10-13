@@ -1,12 +1,38 @@
 // ALEPH SDP 엔진이 확인한 요청만 받는 학생 판정기입니다.
-// 등록된 기기만 허용하고, 복합 이상 접속에는 추가 본인 확인을 요구합니다.
+// 등록 기기, 복합 이상 접속, 정확한 자원 구역을 순서대로 확인합니다.
 
 export const RULE_IDS = Object.freeze([
   'device_registered',
   'step_up_required',
+  'resource_scope',
 ]);
 
 const SIGNAL_KEYS = ['hour', 'network', 'region', 'source'];
+
+const STARTER_RESOURCE_BINDINGS = Object.freeze([
+  Object.freeze({
+    classId: 'class_fixture',
+    projectId: 'project_fixture',
+    subjectId: 'learner_fixture',
+    ownerSubjectId: 'learner_fixture',
+    deviceId: 'a'.repeat(16),
+    service: 'notes',
+    path: '/notes/demo',
+    resourceId: 'notes:demo',
+    permissions: Object.freeze(['GET', 'PUT']),
+  }),
+  Object.freeze({
+    classId: 'class_fixture',
+    projectId: 'project_fixture',
+    subjectId: 'learner_fixture',
+    ownerSubjectId: 'learner_fixture',
+    deviceId: 'a'.repeat(16),
+    service: 'notes',
+    path: '/notes',
+    resourceId: 'notes:list',
+    permissions: Object.freeze(['GET']),
+  }),
+]);
 
 function hasValidSignalShape(signals) {
   if (!signals || typeof signals !== 'object' || Array.isArray(signals)) {
@@ -50,7 +76,6 @@ function hasCompositeRisk(request) {
   }
 
   const unusualTime = signals.hour < 6 || signals.hour >= 22;
-
   const unusualNetwork = signals.network !== 'usual';
 
   // recentEvents는 계약상 이미 엔진이 제공한 "최근 사건"입니다.
@@ -84,6 +109,134 @@ function hasFreshStepUp(stepUp) {
     && stepUp.authAgeSeconds <= 900;
 }
 
+function isResourcePart(value) {
+  return value === 'demo'
+    || (
+      typeof value === 'string'
+      && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+    );
+}
+
+function resourceIdForRequest(request) {
+  if (request.queryLength !== 0) {
+    return null;
+  }
+
+  if (
+    typeof request.service !== 'string'
+    || typeof request.method !== 'string'
+    || typeof request.path !== 'string'
+    || typeof request.route !== 'string'
+  ) {
+    return null;
+  }
+
+  if (request.service === 'notes') {
+    if (
+      request.path === '/notes'
+      && request.method === 'GET'
+      && request.route === 'GET /notes'
+    ) {
+      return 'notes:list';
+    }
+
+    const match = /^\/notes\/([^/]+)$/.exec(request.path);
+
+    if (!match || !isResourcePart(match[1])) {
+      return null;
+    }
+
+    if (!['GET', 'PUT'].includes(request.method)) {
+      return null;
+    }
+
+    if (request.route !== `${request.method} /notes/:id`) {
+      return null;
+    }
+
+    return `notes:${match[1]}`;
+  }
+
+  if (request.service === 'announcements') {
+    const match = /^\/announcements\/([^/]+)$/.exec(request.path);
+
+    if (!match || !isResourcePart(match[1])) {
+      return null;
+    }
+
+    if (request.method !== 'PUT') {
+      return null;
+    }
+
+    if (request.route !== 'PUT /announcements/:id') {
+      return null;
+    }
+
+    return `announcements:${match[1]}`;
+  }
+
+  return null;
+}
+
+function loadResourceBindings() {
+  const raw = typeof process !== 'undefined'
+    ? process.env.ALEPH_RESOURCE_BINDINGS
+    : undefined;
+
+  if (!raw) {
+    return STARTER_RESOURCE_BINDINGS;
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+
+    return Array.isArray(parsed)
+      ? parsed
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+export function resourceAllowed(
+  request,
+  bindings = loadResourceBindings(),
+) {
+  const resourceId = resourceIdForRequest(request);
+
+  if (!resourceId || !Array.isArray(bindings)) {
+    return false;
+  }
+
+  return bindings.some(binding => {
+    if (
+      !binding
+      || binding.classId !== request.classId
+      || binding.projectId !== request.projectId
+      || binding.subjectId !== request.subjectId
+      || binding.deviceId !== request.deviceId
+      || binding.service !== request.service
+      || binding.path !== request.path
+      || binding.resourceId !== resourceId
+      || !Array.isArray(binding.permissions)
+      || !binding.permissions.includes(request.method)
+    ) {
+      return false;
+    }
+
+    if (request.service === 'notes') {
+      return binding.ownerSubjectId === request.subjectId;
+    }
+
+    if (request.service === 'announcements') {
+      return request.method === 'PUT'
+        && binding.instructor === true;
+    }
+
+    return false;
+  });
+}
+
 function stepUpResponse(request) {
   return {
     schema: 'aleph.decision.v1',
@@ -91,6 +244,16 @@ function stepUpResponse(request) {
     decision: 'step_up',
     reasonCode: 'step_up_required',
     ruleIds: ['step_up_required'],
+  };
+}
+
+function resourceDeniedResponse(request) {
+  return {
+    schema: 'aleph.decision.v1',
+    requestId: request.requestId,
+    decision: 'deny',
+    reasonCode: 'resource_not_allowed',
+    ruleIds: ['resource_scope'],
   };
 }
 
@@ -114,7 +277,7 @@ export async function decide(request) {
   // 복합 위험은 확인 가능한 신호가 모두 조건을 충족할 때만 판정합니다.
 
   // 엔진이 유효한 추가 확인 결과를 전달한 경우에는
-  // 복합 이상 요청을 다시 판정해 허용합니다.
+  // 복합 이상 요청을 다시 판정합니다.
   if (
     hasCompositeRisk(request)
     && !hasFreshStepUp(request.stepUp)
@@ -122,11 +285,15 @@ export async function decide(request) {
     return stepUpResponse(request);
   }
 
+  if (!resourceAllowed(request)) {
+    return resourceDeniedResponse(request);
+  }
+
   return {
     schema: 'aleph.decision.v1',
     requestId: request.requestId,
     decision: 'allow',
     reasonCode: 'approved',
-    ruleIds: ['device_registered'],
+    ruleIds: ['resource_scope'],
   };
 }
