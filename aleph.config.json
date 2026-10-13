@@ -10,12 +10,42 @@
     "audience": "authenticated"
   },
   "allowedRoutes": [
-    "GET /api/notes",
-    "POST /api/notes",
-    "GET /api/notes/:id",
-    "PUT /api/notes/:id",
-    "DELETE /api/notes/:id",
-    "PUT /api/announcements/:id"
+    {
+      "service": "notes",
+      "method": "GET",
+      "pathPattern": "/api/notes",
+      "zone": "my-notes"
+    },
+    {
+      "service": "notes",
+      "method": "POST",
+      "pathPattern": "/api/notes",
+      "zone": "my-notes"
+    },
+    {
+      "service": "notes",
+      "method": "GET",
+      "pathPattern": "/api/notes/:id",
+      "zone": "my-notes"
+    },
+    {
+      "service": "notes",
+      "method": "PUT",
+      "pathPattern": "/api/notes/:id",
+      "zone": "my-notes"
+    },
+    {
+      "service": "notes",
+      "method": "DELETE",
+      "pathPattern": "/api/notes/:id",
+      "zone": "my-notes"
+    },
+    {
+      "service": "announcements",
+      "method": "PUT",
+      "pathPattern": "/api/announcements/:id",
+      "zone": "instructor-materials"
+    }
   ],
   "originalApiUrl": "https://foynurtqnrgvsctcvbdr.supabase.co/rest/v1/virtual_notes",
   "restoreRoute": null

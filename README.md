@@ -730,3 +730,48 @@ PUT /api/announcements/:id
 - Stage 8 심판 판정: 아직 제출하지 않음
 
 로컬 테스트, 직접 점검 및 제출 묶음 생성 성공은 각각 별개의 검증 단계이며 심판 통과와 동일하게 취급하지 않습니다.
+
+### 8단계 구역 규칙 재검증 저장점
+
+8단계의 자원 구역 판정을 실제 서버 API와 심판 요청 계약에 맞게 다시 정리했습니다.
+
+현재 구조는 다음과 같습니다.
+
+- 메모와 강사 공지는 서버가 서로 다른 자원 ID로 구분합니다.
+  - 메모 단건: `notes:<id>`
+  - 메모 목록: `notes:list`
+  - 강사 공지 단건: `announcements:<id>`
+- 자원 ID는 브라우저가 전달한 값을 신뢰하지 않고 서버 라우트와 검증된 자료 ID로 생성합니다.
+- `aleph.config.json`의 `allowedRoutes`는 각 API 경로에 `service`, `method`, `pathPattern`, `zone`을 명시합니다.
+  - 메모 API: `my-notes`
+  - 강사 공지 수정 API: `instructor-materials`
+- `src/decider.mjs`는 `aleph.decision.v1` 계약에 실제로 존재하는 값만 사용합니다.
+- 판정기는 자료의 실제 소유자를 추측하지 않고 등록 기기, 복합 이상 접속, 정확한 서비스·메서드·경로·route 구역만 판정합니다.
+- 일반 메모 전체 목록이나 `export`, `admin` 같은 기능 경로는 단건 자료 구역으로 허용하지 않습니다.
+- 메모 단건의 실제 소유권은 최종 API가 `authentication.userId`와 DB의 `owner_id`를 다시 비교해 확인합니다.
+- `/api/notes` 목록도 인증 사용자의 `owner_id`로 조회 범위를 제한합니다.
+- 메모 생성 시 `owner_id`는 서버가 인증 사용자 ID로 지정합니다.
+- 강사 공지 수정은 요청 body의 `role`을 신뢰하지 않고 서버의 `vault_instructors`에서 로그인 사용자의 강사 권한을 확인합니다.
+- 기존 7단계의 등록 기기 및 복합 이상 접속 `step_up` 규칙은 유지합니다.
+
+로컬 재검증:
+
+```bash
+node --test test/stage8-api-guard.test.mjs
+node --test test/stage8-decider.test.mjs
+node --test test/stage8-resource-id.test.mjs
+npm run fixture:7
+npm run decider:test
+git diff --check
+```
+
+확인된 로컬 결과:
+
+- Stage 8 API guard: 7/7 통과
+- Stage 8 decider: 15/15 통과
+- Stage 8 resource ID: 6/6 통과
+- Stage 7 fixture: 정상 요청 `allow`, 복합 이상 요청 `step_up`
+- `npm run decider:test`: 4개 가상 요청 통과
+- `git diff --check`: 통과
+
+이 결과는 로컬 정적 검사와 가상 요청 자기점검 결과이며, 실제 심판 통과나 배포 성공을 의미하지 않습니다.

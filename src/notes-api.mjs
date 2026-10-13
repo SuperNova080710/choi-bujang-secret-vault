@@ -5,6 +5,9 @@ import {
     isSameOriginRequest,
 } from './auth-cookie.mjs';
 import { createLoginVerifier } from './verify-login.mjs';
+import {
+    serverResourceId,
+} from './resource-id.mjs';
 
 let verifyLoginAuthorization;
 
@@ -118,6 +121,7 @@ export function isUuid(value) {
 export function toNoteResponse(note) {
     return {
         id: note.public_id,
+        resourceId: serverResourceId('notes', note.public_id),
         title: note.title,
         body: note.content,
     };

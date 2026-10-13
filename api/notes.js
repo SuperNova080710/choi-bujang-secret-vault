@@ -4,8 +4,18 @@ import {
     isUuid,
     toNoteResponse,
 } from '../src/notes-api.mjs';
+import {
+    serverResourceId,
+} from '../src/resource-id.mjs';
 
 export default async function handler(request, response) {
+    const requestResourceId = serverResourceId('notes');
+
+    response.setHeader(
+        'X-Aleph-Resource-Id',
+        requestResourceId,
+    );
+
     if (!['GET', 'POST'].includes(request.method)) {
         response.setHeader('Allow', 'GET, POST');
         return response.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
@@ -52,6 +62,7 @@ export default async function handler(request, response) {
         }
 
         return response.status(200).json({
+            resourceId: requestResourceId,
             notes: data.map(toNoteResponse),
         });
     }
@@ -95,9 +106,7 @@ export default async function handler(request, response) {
         return response.status(500).json({ error: 'NOTE_CREATE_FAILED' });
     }
 
-    return response.status(201).json({
-        id: data.public_id,
-        title: data.title,
-        body: data.content,
-    });
+    return response
+        .status(201)
+        .json(toNoteResponse(data));
 }

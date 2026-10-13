@@ -3,6 +3,9 @@ import {
     getSupabaseClient,
     isUuid,
 } from '../../src/notes-api.mjs';
+import {
+    serverResourceId,
+} from '../../src/resource-id.mjs';
 
 export default async function handler(request, response) {
     const { id } = request.query;
@@ -10,6 +13,16 @@ export default async function handler(request, response) {
     if (!isUuid(id)) {
         return response.status(400).json({ error: 'INVALID_ID' });
     }
+
+    const requestResourceId = serverResourceId(
+        'announcements',
+        id,
+    );
+
+    response.setHeader(
+        'X-Aleph-Resource-Id',
+        requestResourceId,
+    );
 
     if (request.method !== 'PUT') {
         response.setHeader('Allow', 'PUT');
@@ -94,6 +107,7 @@ export default async function handler(request, response) {
 
     return response.status(200).json({
         id: data.id,
+        resourceId: requestResourceId,
         title: data.title,
         body: data.content,
     });

@@ -4,9 +4,23 @@ import {
     isUuid,
     toNoteResponse,
 } from '../../src/notes-api.mjs';
+import {
+    serverResourceId,
+} from '../../src/resource-id.mjs';
 
 export default async function handler(request, response) {
     const { id } = request.query;
+
+    if (!isUuid(id)) {
+        return response.status(400).json({ error: 'INVALID_ID' });
+    }
+
+    const requestResourceId = serverResourceId('notes', id);
+
+    response.setHeader(
+        'X-Aleph-Resource-Id',
+        requestResourceId,
+    );
 
     if (!isUuid(id)) {
         return response.status(400).json({ error: 'INVALID_ID' });

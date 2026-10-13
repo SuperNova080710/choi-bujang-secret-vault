@@ -40,3 +40,25 @@ export function announcementResourceId(announcementId) {
 export function announcementListResourceId() {
     return `${RESOURCE_FAMILIES.ANNOUNCEMENTS}:list`;
 }
+
+/*
+ * 실제 API 핸들러가 사용하는 서버 측 자원 식별 진입점입니다.
+ *
+ * family와 resourcePart는 브라우저가 보낸 resourceId 값을 읽는 것이 아니라
+ * 각 서버 라우트가 고정된 family와 검증된 경로 ID를 직접 전달합니다.
+ */
+export function serverResourceId(family, resourcePart) {
+    if (family === RESOURCE_FAMILIES.NOTES) {
+        return resourcePart === undefined
+            ? noteListResourceId()
+            : noteResourceId(resourcePart);
+    }
+
+    if (family === RESOURCE_FAMILIES.ANNOUNCEMENTS) {
+        return resourcePart === undefined
+            ? announcementListResourceId()
+            : announcementResourceId(resourcePart);
+    }
+
+    throw new TypeError('알 수 없는 자원 구역입니다.');
+}
