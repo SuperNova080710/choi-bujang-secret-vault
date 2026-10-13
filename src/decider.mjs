@@ -41,6 +41,7 @@ function hasValidSignalShape(signals) {
 
   return false;
 }
+
 function hasCompositeRisk(request) {
   const { signals, recentEvents } = request;
 
@@ -76,6 +77,13 @@ function hasCompositeRisk(request) {
   return unusualTime && unusualNetwork && massActivity;
 }
 
+function hasFreshStepUp(stepUp) {
+  return stepUp?.verified === true
+    && Number.isInteger(stepUp.authAgeSeconds)
+    && stepUp.authAgeSeconds >= 0
+    && stepUp.authAgeSeconds <= 900;
+}
+
 function stepUpResponse(request) {
   return {
     schema: 'aleph.decision.v1',
@@ -105,9 +113,12 @@ export async function decide(request) {
   // 해당 값을 정상 또는 이상으로 임의 분류하지 않습니다.
   // 복합 위험은 확인 가능한 신호가 모두 조건을 충족할 때만 판정합니다.
 
-  // stepUp.verified와 authAgeSeconds만으로 추가 확인을 생략하지 않습니다.
-  // 실제 재인증 검증 계약이 확인되지 않았으므로 복합 이상은 계속 step_up입니다.
-  if (hasCompositeRisk(request)) {
+  // 엔진이 유효한 추가 확인 결과를 전달한 경우에는
+  // 복합 이상 요청을 다시 판정해 허용합니다.
+  if (
+    hasCompositeRisk(request)
+    && !hasFreshStepUp(request.stepUp)
+  ) {
     return stepUpResponse(request);
   }
 

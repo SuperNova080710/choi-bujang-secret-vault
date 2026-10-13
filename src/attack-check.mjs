@@ -378,20 +378,20 @@ export async function runAttackChecks(config) {
       stepUp: { verified: true, authAgeSeconds: 60 },
     };
 
-    const claimedReverifiedDecision = await decide(claimedReverifiedRequest);
+    const reverifiedDecision = await decide(claimedReverifiedRequest);
 
-    const stillRequiresStepUp =
-      claimedReverifiedDecision?.schema === 'aleph.decision.v1' &&
-      claimedReverifiedDecision.requestId === claimedReverifiedRequest.requestId &&
-      claimedReverifiedDecision.decision === 'step_up' &&
-      claimedReverifiedDecision.reasonCode === 'step_up_required';
+    const allowedAfterStepUp =
+      reverifiedDecision?.schema === 'aleph.decision.v1' &&
+      reverifiedDecision.requestId === claimedReverifiedRequest.requestId &&
+      reverifiedDecision.decision === 'allow' &&
+      reverifiedDecision.reasonCode === 'approved';
 
     results.push({
-      attackId: 'step_up_claim_does_not_bypass',
-      expected: '실제 재인증 검증 계약이 없으므로 verified 값만으로 복합 이상 요청을 허용하지 않아야 함',
-      observed: stillRequiresStepUp
-        ? 'verified 값만 전달한 요청도 step_up으로 유지됨'
-        : 'verified 값만 전달한 요청의 판정이 예상과 다름',
+      attackId: 'step_up_verified_allows_retry',
+      expected: '유효한 추가 확인 뒤 복합 이상 요청을 다시 판정하면 allow여야 함',
+      observed: allowedAfterStepUp
+        ? '유효한 추가 확인 뒤 요청이 allow로 판정됨'
+        : '추가 확인 뒤 요청이 예상한 allow 결과로 판정되지 않음',
     });
   }
 

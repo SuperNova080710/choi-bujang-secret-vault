@@ -38,14 +38,13 @@ export async function checkDecider({ decide, ruleIds }) {
         reasonCode: 'step_up_required',
       },
       {
-        name: '재인증 계약 없이 verified 값만 전달한 요청',
+        name: '다시 확인한 복합 이상 접속',
         request: {
           ...suspicious,
           requestId: randomUUID(),
           stepUp: { verified: true, authAgeSeconds: 60 },
         },
-        decision: 'step_up',
-        reasonCode: 'step_up_required',
+        decision: 'allow',
       },
     );
   }
