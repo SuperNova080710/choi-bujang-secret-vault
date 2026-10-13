@@ -1,7 +1,7 @@
 // The student changes this check as each stage adds an attack to the same app.
 // Never return tokens, private keys, real names, or note bodies.
 export async function runAttackChecks(config) {
-  if (![3, 4, 5, 6, 7].includes(config.step)) {
+  if (![3, 4, 5, 6, 7, 8].includes(config.step)) {
     throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   }
 
@@ -281,25 +281,58 @@ export async function runAttackChecks(config) {
     });
   }
 
+  const decisionFixture = {
+    schema: 'aleph.decision.v1',
+    requestId: crypto.randomUUID(),
+    classId: 'class_fixture',
+    projectId: 'project_fixture',
+    subjectId: 'learner_fixture',
+    deviceId: 'aaaaaaaaaaaaaaaa',
+    service: 'notes',
+    method: 'GET',
+    path: '/notes/demo',
+    route: 'GET /notes/:id',
+    queryLength: 0,
+    querySha256:
+      'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+    at: new Date().toISOString(),
+    policyRevision: 1,
+    deviceRegistered: true,
+    stepUp: {
+      verified: false,
+      authAgeSeconds: null,
+    },
+    recentEvents: [],
+    signals: {
+      source: 'judge_fixture',
+      region: 'local',
+      network: 'usual',
+      hour: 14,
+    },
+  };
+
   // 6단계: 등록된 기기만 허용되는지 판정기 자체를 검사
   if (config.step >= 6) {
     const { decide } = await import('./decider.mjs');
 
     const registeredRequest = {
-      schema: 'aleph.decision.v1',
+      ...decisionFixture,
       requestId: crypto.randomUUID(),
-      deviceRegistered: true,
     };
 
     const registeredDecision = await decide(registeredRequest);
 
     const registeredAllowed =
-      registeredDecision?.schema === 'aleph.decision.v1' &&
-      registeredDecision.requestId === registeredRequest.requestId &&
-      registeredDecision.decision === 'allow' &&
-      registeredDecision.reasonCode === 'approved' &&
-      Array.isArray(registeredDecision.ruleIds) &&
-      registeredDecision.ruleIds.includes('device_registered');
+      registeredDecision?.schema === 'aleph.decision.v1'
+      && registeredDecision.requestId === registeredRequest.requestId
+      && registeredDecision.decision === 'allow'
+      && registeredDecision.reasonCode === 'approved'
+      && Array.isArray(registeredDecision.ruleIds)
+      && (
+        config.step >= 8
+          ? registeredDecision.ruleIds.includes('resource_scope')
+          : registeredDecision.ruleIds.includes('device_registered')
+      );
 
     results.push({
       attackId: 'registered_device_allowed',
@@ -339,12 +372,18 @@ export async function runAttackChecks(config) {
     const { decide } = await import('./decider.mjs');
 
     const suspiciousRequest = {
-      schema: 'aleph.decision.v1',
+      ...decisionFixture,
       requestId: crypto.randomUUID(),
-      deviceRegistered: true,
-      stepUp: { verified: false, authAgeSeconds: null },
+      stepUp: {
+        verified: false,
+        authAgeSeconds: null,
+      },
       recentEvents: [
-        { kind: 'risk_signal', ageSeconds: 60, count: 20 },
+        {
+          kind: 'risk_signal',
+          ageSeconds: 60,
+          count: 20,
+        },
       ],
       signals: {
         source: 'judge_fixture',
@@ -392,6 +431,130 @@ export async function runAttackChecks(config) {
       observed: allowedAfterStepUp
         ? '유효한 추가 확인 뒤 요청이 allow로 판정됨'
         : '추가 확인 뒤 요청이 예상한 allow 결과로 판정되지 않음',
+    });
+  }
+
+  // 8단계: 사용자·기기·메서드·정확한 자원 경로의 구역 판정 검사
+  if (config.step >= 8) {
+    const { decide } = await import('./decider.mjs');
+
+    const ownNoteRequest = {
+      ...decisionFixture,
+      requestId: crypto.randomUUID(),
+    };
+
+    const ownNoteDecision = await decide(ownNoteRequest);
+
+    const ownListRequest = {
+      ...decisionFixture,
+      requestId: crypto.randomUUID(),
+      path: '/notes',
+      route: 'GET /notes',
+    };
+
+    const ownListDecision = await decide(ownListRequest);
+
+    const ownResourcesAllowed =
+      ownNoteDecision?.decision === 'allow'
+      && ownNoteDecision.reasonCode === 'approved'
+      && Array.isArray(ownNoteDecision.ruleIds)
+      && ownNoteDecision.ruleIds.includes('resource_scope')
+      && ownListDecision?.decision === 'allow'
+      && ownListDecision.reasonCode === 'approved'
+      && Array.isArray(ownListDecision.ruleIds)
+      && ownListDecision.ruleIds.includes('resource_scope');
+
+    results.push({
+      attackId: 'own_resource_allowed',
+      expected: '본인 메모 단건과 본인 메모 목록은 resource_scope 규칙으로 허용되어야 함',
+      observed: ownResourcesAllowed
+        ? '본인 메모 단건과 목록이 모두 allow로 판정됨'
+        : '본인 정상 자료 요청 중 하나 이상이 allow로 판정되지 않음',
+    });
+
+    const otherNoteRequest = {
+      ...decisionFixture,
+      requestId: crypto.randomUUID(),
+      subjectId: 'other-user',
+    };
+
+    const otherNoteDecision = await decide(otherNoteRequest);
+
+    const otherListRequest = {
+      ...decisionFixture,
+      requestId: crypto.randomUUID(),
+      subjectId: 'other-user',
+      path: '/notes',
+      route: 'GET /notes',
+    };
+
+    const otherListDecision = await decide(otherListRequest);
+
+    const otherZoneDenied =
+      otherNoteDecision?.decision === 'deny'
+      && otherNoteDecision.reasonCode === 'resource_not_allowed'
+      && Array.isArray(otherNoteDecision.ruleIds)
+      && otherNoteDecision.ruleIds.includes('resource_scope')
+      && otherListDecision?.decision === 'deny'
+      && otherListDecision.reasonCode === 'resource_not_allowed'
+      && Array.isArray(otherListDecision.ruleIds)
+      && otherListDecision.ruleIds.includes('resource_scope');
+
+    results.push({
+      attackId: 'other_zone_denied',
+      expected: '다른 주체가 본인에게 배정되지 않은 메모 단건이나 목록 구역을 요청하면 거부되어야 함',
+      observed: otherZoneDenied
+        ? '다른 주체의 메모 단건과 목록 요청이 resource_not_allowed로 거부됨'
+        : '다른 주체의 자원 요청 중 하나 이상이 예상대로 거부되지 않음',
+    });
+
+    const functionPathRequest = {
+      ...decisionFixture,
+      requestId: crypto.randomUUID(),
+      path: '/notes/export',
+      route: 'GET /notes/:id',
+    };
+
+    const functionPathDecision = await decide(functionPathRequest);
+
+    const functionPathDenied =
+      functionPathDecision?.decision === 'deny'
+      && functionPathDecision.reasonCode === 'resource_not_allowed'
+      && Array.isArray(functionPathDecision.ruleIds)
+      && functionPathDecision.ruleIds.includes('resource_scope');
+
+    results.push({
+      attackId: 'unknown_resource_path_denied',
+      expected: ':id 위치에 export 같은 기능 이름을 넣은 알 수 없는 자원 경로는 거부되어야 함',
+      observed: functionPathDenied
+        ? '기능 이름을 자원 ID로 사용한 경로가 resource_not_allowed로 거부됨'
+        : '알 수 없는 기능 경로가 예상대로 거부되지 않음',
+    });
+
+    const studentAnnouncementRequest = {
+      ...decisionFixture,
+      requestId: crypto.randomUUID(),
+      service: 'announcements',
+      method: 'PUT',
+      path: '/announcements/demo',
+      route: 'PUT /announcements/:id',
+    };
+
+    const studentAnnouncementDecision =
+      await decide(studentAnnouncementRequest);
+
+    const studentAnnouncementDenied =
+      studentAnnouncementDecision?.decision === 'deny'
+      && studentAnnouncementDecision.reasonCode === 'resource_not_allowed'
+      && Array.isArray(studentAnnouncementDecision.ruleIds)
+      && studentAnnouncementDecision.ruleIds.includes('resource_scope');
+
+    results.push({
+      attackId: 'student_announcement_update_denied',
+      expected: '강사 권한 연결이 없는 일반 학생의 공지 수정 요청은 거부되어야 함',
+      observed: studentAnnouncementDenied
+        ? '일반 학생의 공지 수정 요청이 resource_not_allowed로 거부됨'
+        : '일반 학생의 공지 수정 요청이 예상대로 거부되지 않음',
     });
   }
 
