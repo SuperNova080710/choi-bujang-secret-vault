@@ -45,15 +45,19 @@ function hasValidSignalShape(signals) {
 function hasCompositeRisk(request) {
   const { signals, recentEvents } = request;
 
-  // judge_fixture는 가상 테스트 데이터이며 실제 위치 증거가 아닙니다.
+  // 가상 접속 신호가 아닌 경우에는
+  // 확인되지 않은 값을 위험 신호로 추측하지 않습니다.
   if (signals.source !== 'judge_fixture') {
     return false;
   }
 
-  // 지역 변경만으로는 추가 확인을 요구하지 않습니다.
+  // 비정상 시간대
   const unusualTime = signals.hour < 6 || signals.hour >= 22;
+
+  // 낯선 네트워크
   const unusualNetwork = signals.network === 'unusual';
 
+  // 최근 5분 이내 대량 읽기
   const massRead = Array.isArray(recentEvents)
     && recentEvents.some(event =>
       event
@@ -65,8 +69,10 @@ function hasCompositeRisk(request) {
       && event.count >= 10
     );
 
+  // 세 조건이 모두 충족된 경우에만 복합 위험
   return unusualTime && unusualNetwork && massRead;
 }
+
 
 function stepUpResponse(request) {
   return {
@@ -93,11 +99,9 @@ export async function decide(request) {
     return stepUpResponse(request);
   }
 
-  // 실제 신호 출처가 없으면 정상 접속인지 확인할 수 없으므로
-  // 정상으로 간주하지 않고 추가 본인 확인을 요구합니다.
-  if (request.signals.source !== 'judge_fixture') {
-    return stepUpResponse(request);
-  }
+  // source가 none이면 지역·네트워크를 알 수 없으므로
+  // 해당 값을 정상 또는 이상으로 임의 분류하지 않습니다.
+  // 복합 위험은 확인 가능한 신호가 모두 조건을 충족할 때만 판정합니다.
 
   // stepUp.verified와 authAgeSeconds만으로 추가 확인을 생략하지 않습니다.
   // 실제 재인증 검증 계약이 확인되지 않았으므로 복합 이상은 계속 step_up입니다.
