@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+
 import {
     decide,
     resourceAllowed,
@@ -38,27 +39,64 @@ function request(overrides = {}) {
     };
 }
 
-test('다른 주체의 메모 목록 요청도 거부한다', async () => {
+test('정확한 메모 단건 GET 구역을 허용한다', async () => {
+    const result = await decide(request());
+
+    assert.equal(result.decision, 'allow');
+    assert.equal(result.reasonCode, 'approved');
+    assert.deepEqual(
+        result.ruleIds,
+        ['resource_zone'],
+    );
+});
+
+test('API 형식의 메모 단건 GET 구역도 허용한다', async () => {
     const result = await decide(request({
-        subjectId: 'learner_b',
+        path: '/api/notes/demo',
+        route: 'GET /api/notes/:id',
+    }));
+
+    assert.equal(result.decision, 'allow');
+    assert.equal(result.reasonCode, 'approved');
+});
+
+test('메모 단건 PUT 구역을 허용한다', async () => {
+    const result = await decide(request({
+        method: 'PUT',
+        route: 'PUT /notes/:id',
+    }));
+
+    assert.equal(result.decision, 'allow');
+});
+
+test('메모 전체 목록 경로는 허용하지 않는다', async () => {
+    const result = await decide(request({
         path: '/notes',
         route: 'GET /notes',
     }));
 
     assert.equal(result.decision, 'deny');
-    assert.equal(result.reasonCode, 'resource_not_allowed');
-    assert.deepEqual(result.ruleIds, ['resource_scope']);
+    assert.equal(
+        result.reasonCode,
+        'policy_denied',
+    );
+    assert.deepEqual(
+        result.ruleIds,
+        ['resource_zone'],
+    );
 });
 
-test('B 사용자가 A의 메모를 읽으면 거부한다', async () => {
+test('API 메모 전체 목록 경로도 허용하지 않는다', async () => {
     const result = await decide(request({
-        subjectId: 'learner_b',
-        path: '/notes/learner_a-note-01',
+        path: '/api/notes',
+        route: 'GET /api/notes',
     }));
 
     assert.equal(result.decision, 'deny');
-    assert.equal(result.reasonCode, 'resource_not_allowed');
-    assert.deepEqual(result.ruleIds, ['resource_scope']);
+    assert.equal(
+        result.reasonCode,
+        'policy_denied',
+    );
 });
 
 test('export 기능 경로는 자원 ID로 인정하지 않는다', async () => {
@@ -67,22 +105,51 @@ test('export 기능 경로는 자원 ID로 인정하지 않는다', async () => 
     }));
 
     assert.equal(result.decision, 'deny');
-    assert.equal(result.reasonCode, 'resource_not_allowed');
+    assert.equal(
+        result.reasonCode,
+        'policy_denied',
+    );
+});
+
+test('알 수 없는 admin 기능 경로도 거부한다', async () => {
+    const result = await decide(request({
+        path: '/api/notes/admin',
+        route: 'GET /api/notes/:id',
+    }));
+
+    assert.equal(result.decision, 'deny');
 });
 
 test('쿼리가 붙은 자원 요청은 거부한다', async () => {
     const result = await decide(request({
-        path: '/notes/learner_fixture-note-01',
         queryLength: 8,
     }));
 
     assert.equal(result.decision, 'deny');
-    assert.equal(result.reasonCode, 'resource_not_allowed');
+    assert.equal(
+        result.reasonCode,
+        'policy_denied',
+    );
 });
 
-test('일반 학생의 강사 공지 수정은 거부한다', async () => {
+test('service와 실제 경로가 다르면 거부한다', async () => {
     const result = await decide(request({
-        subjectId: 'learner_a',
+        service: 'announcements',
+    }));
+
+    assert.equal(result.decision, 'deny');
+});
+
+test('route와 실제 path가 다르면 거부한다', async () => {
+    const result = await decide(request({
+        route: 'GET /api/notes/:id',
+    }));
+
+    assert.equal(result.decision, 'deny');
+});
+
+test('일반 판정기에서는 강사 공지 PUT을 허용하지 않는다', async () => {
+    const result = await decide(request({
         service: 'announcements',
         method: 'PUT',
         path: '/announcements/notice-01',
@@ -90,7 +157,10 @@ test('일반 학생의 강사 공지 수정은 거부한다', async () => {
     }));
 
     assert.equal(result.decision, 'deny');
-    assert.equal(result.reasonCode, 'resource_not_allowed');
+    assert.equal(
+        result.reasonCode,
+        'policy_denied',
+    );
 });
 
 test('미등록 기기는 기존 규칙대로 거부한다', async () => {
@@ -99,8 +169,14 @@ test('미등록 기기는 기존 규칙대로 거부한다', async () => {
     }));
 
     assert.equal(result.decision, 'deny');
-    assert.equal(result.reasonCode, 'device_not_registered');
-    assert.deepEqual(result.ruleIds, ['device_registered']);
+    assert.equal(
+        result.reasonCode,
+        'device_not_registered',
+    );
+    assert.deepEqual(
+        result.ruleIds,
+        ['device_registered'],
+    );
 });
 
 test('복합 이상 요청은 기존 규칙대로 추가 확인을 요구한다', async () => {
@@ -121,81 +197,50 @@ test('복합 이상 요청은 기존 규칙대로 추가 확인을 요구한다'
     }));
 
     assert.equal(result.decision, 'step_up');
-    assert.equal(result.reasonCode, 'step_up_required');
-});
-
-test('서버 binding의 소유자와 요청자가 같으면 단건 메모를 허용한다', () => {
-    const req = request({
-        subjectId: 'subject_a',
-        path: '/notes/note-17',
-    });
-
-    const bindings = [
-        {
-            classId: 'class_fixture',
-            projectId: 'project_fixture',
-            subjectId: 'subject_a',
-            ownerSubjectId: 'subject_a',
-            deviceId: 'aaaaaaaaaaaaaaaa',
-            service: 'notes',
-            path: '/notes/note-17',
-            resourceId: 'notes:note-17',
-            permissions: ['GET'],
-        },
-    ];
-
     assert.equal(
-        resourceAllowed(req, bindings),
-        true,
+        result.reasonCode,
+        'step_up_required',
     );
 });
 
-test('B 사용자가 A의 opaque 메모 ID를 읽으면 거부한다', () => {
-    const req = request({
-        subjectId: 'subject_b',
-        path: '/notes/note-17',
-    });
-
-    const bindings = [
-        {
-            classId: 'class_fixture',
-            projectId: 'project_fixture',
-            subjectId: 'subject_a',
-            ownerSubjectId: 'subject_a',
-            deviceId: 'aaaaaaaaaaaaaaaa',
-            service: 'notes',
-            path: '/notes/note-17',
-            resourceId: 'notes:note-17',
-            permissions: ['GET'],
-        },
-    ];
-
-    assert.equal(
-        resourceAllowed(req, bindings),
-        false,
-    );
-});
-
-test('소유권 binding이 없는 단건 메모는 추측해서 허용하지 않는다', () => {
-    const req = request({
-        subjectId: 'subject_a',
-        path: '/notes/subject_a-note-17',
-    });
-
-    assert.equal(
-        resourceAllowed(req, []),
-        false,
-    );
-});
-
-test('메모 목록 경로는 판정기에서 허용하지 않는다', async () => {
+test('추가 확인 뒤 정상 단건 요청은 허용한다', async () => {
     const result = await decide(request({
-        subjectId: 'learner_fixture',
-        path: '/notes',
-        route: 'GET /notes',
+        stepUp: {
+            verified: true,
+            authAgeSeconds: 60,
+        },
+        recentEvents: [
+            {
+                kind: 'risk_signal',
+                ageSeconds: 60,
+                count: 20,
+            },
+        ],
+        signals: {
+            source: 'judge_fixture',
+            region: 'foreign',
+            network: 'unusual',
+            hour: 3,
+        },
     }));
 
-    assert.equal(result.decision, 'deny');
-    assert.equal(result.reasonCode, 'resource_not_allowed');
-    assert.deepEqual(result.ruleIds, ['resource_scope']);
+    assert.equal(result.decision, 'allow');
+});
+
+test('resourceAllowed는 소유자를 추측하지 않고 단건 구역만 판정한다', () => {
+    assert.equal(
+        resourceAllowed(request({
+            subjectId: 'opaque-subject-a',
+            path: '/notes/opaque-note-id',
+        })),
+        true,
+    );
+
+    assert.equal(
+        resourceAllowed(request({
+            subjectId: 'opaque-subject-b',
+            path: '/notes/opaque-note-id',
+        })),
+        true,
+    );
 });

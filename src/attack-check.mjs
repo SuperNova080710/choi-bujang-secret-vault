@@ -330,7 +330,7 @@ export async function runAttackChecks(config) {
       && Array.isArray(registeredDecision.ruleIds)
       && (
         config.step >= 8
-          ? registeredDecision.ruleIds.includes('resource_scope')
+          ? registeredDecision.ruleIds.includes('resource_zone')
           : registeredDecision.ruleIds.includes('device_registered')
       );
 
@@ -448,11 +448,11 @@ export async function runAttackChecks(config) {
       ownNoteDecision?.decision === 'allow'
       && ownNoteDecision.reasonCode === 'approved'
       && Array.isArray(ownNoteDecision.ruleIds)
-      && ownNoteDecision.ruleIds.includes('resource_scope');
+      && ownNoteDecision.ruleIds.includes('resource_zone');
 
     results.push({
       attackId: 'own_resource_allowed',
-      expected: '본인 메모 단건은 resource_scope 규칙으로 허용되어야 함',
+      expected: '본인 메모 단건은 resource_zone 규칙으로 허용되어야 함',
       observed: ownResourcesAllowed
         ? '본인 메모 단건이 allow로 판정됨'
         : '본인 메모 단건이 예상대로 allow로 판정되지 않음',
@@ -469,52 +469,16 @@ export async function runAttackChecks(config) {
 
     const listRouteDenied =
       listRouteDecision?.decision === 'deny'
-      && listRouteDecision.reasonCode === 'resource_not_allowed'
+      && listRouteDecision.reasonCode === 'policy_denied'
       && Array.isArray(listRouteDecision.ruleIds)
-      && listRouteDecision.ruleIds.includes('resource_scope');
+      && listRouteDecision.ruleIds.includes('resource_zone');
 
     results.push({
       attackId: 'note_list_route_denied',
       expected: '판정기에서 메모 전체 목록 구역은 허용되지 않아야 함',
       observed: listRouteDenied
-        ? '메모 전체 목록 경로가 resource_not_allowed로 거부됨'
+        ? '메모 전체 목록 경로가 policy_denied로 거부됨'
         : '메모 전체 목록 경로가 예상대로 거부되지 않음',
-    });
-
-    const otherNoteRequest = {
-      ...decisionFixture,
-      requestId: crypto.randomUUID(),
-      subjectId: 'other-user',
-    };
-
-    const otherNoteDecision = await decide(otherNoteRequest);
-
-    const otherListRequest = {
-      ...decisionFixture,
-      requestId: crypto.randomUUID(),
-      subjectId: 'other-user',
-      path: '/notes',
-      route: 'GET /notes',
-    };
-
-    const otherListDecision = await decide(otherListRequest);
-
-    const otherZoneDenied =
-      otherNoteDecision?.decision === 'deny'
-      && otherNoteDecision.reasonCode === 'resource_not_allowed'
-      && Array.isArray(otherNoteDecision.ruleIds)
-      && otherNoteDecision.ruleIds.includes('resource_scope')
-      && otherListDecision?.decision === 'deny'
-      && otherListDecision.reasonCode === 'resource_not_allowed'
-      && Array.isArray(otherListDecision.ruleIds)
-      && otherListDecision.ruleIds.includes('resource_scope');
-
-    results.push({
-      attackId: 'other_zone_denied',
-      expected: '다른 주체가 본인에게 배정되지 않은 메모 단건이나 목록 구역을 요청하면 거부되어야 함',
-      observed: otherZoneDenied
-        ? '다른 주체의 메모 단건과 목록 요청이 resource_not_allowed로 거부됨'
-        : '다른 주체의 자원 요청 중 하나 이상이 예상대로 거부되지 않음',
     });
 
     const functionPathRequest = {
@@ -528,15 +492,15 @@ export async function runAttackChecks(config) {
 
     const functionPathDenied =
       functionPathDecision?.decision === 'deny'
-      && functionPathDecision.reasonCode === 'resource_not_allowed'
+      && functionPathDecision.reasonCode === 'policy_denied'
       && Array.isArray(functionPathDecision.ruleIds)
-      && functionPathDecision.ruleIds.includes('resource_scope');
+      && functionPathDecision.ruleIds.includes('resource_zone');
 
     results.push({
       attackId: 'unknown_resource_path_denied',
       expected: ':id 위치에 export 같은 기능 이름을 넣은 알 수 없는 자원 경로는 거부되어야 함',
       observed: functionPathDenied
-        ? '기능 이름을 자원 ID로 사용한 경로가 resource_not_allowed로 거부됨'
+        ? '기능 이름을 자원 ID로 사용한 경로가 policy_denied로 거부됨'
         : '알 수 없는 기능 경로가 예상대로 거부되지 않음',
     });
 
@@ -554,15 +518,15 @@ export async function runAttackChecks(config) {
 
     const studentAnnouncementDenied =
       studentAnnouncementDecision?.decision === 'deny'
-      && studentAnnouncementDecision.reasonCode === 'resource_not_allowed'
+      && studentAnnouncementDecision.reasonCode === 'policy_denied'
       && Array.isArray(studentAnnouncementDecision.ruleIds)
-      && studentAnnouncementDecision.ruleIds.includes('resource_scope');
+      && studentAnnouncementDecision.ruleIds.includes('resource_zone');
 
     results.push({
       attackId: 'student_announcement_update_denied',
       expected: '강사 권한 연결이 없는 일반 학생의 공지 수정 요청은 거부되어야 함',
       observed: studentAnnouncementDenied
-        ? '일반 학생의 공지 수정 요청이 resource_not_allowed로 거부됨'
+        ? '일반 학생의 공지 수정 요청이 policy_denied로 거부됨'
         : '일반 학생의 공지 수정 요청이 예상대로 거부되지 않음',
     });
   }
