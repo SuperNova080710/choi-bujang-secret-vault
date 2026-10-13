@@ -48,23 +48,30 @@ function hasCompositeRisk(request) {
     return false;
   }
 
-  // 평소와 다른 시간
   const unusualTime = signals.hour < 6 || signals.hour >= 22;
 
-  // 정상 fixture 값인 usual과 다른 네트워크
   const unusualNetwork = signals.network !== 'usual';
 
-  // 계약에 recentEvents.kind의 enum이 공개되어 있지 않으므로
-  // 특정 kind 문자열을 추측하지 않고 최근 발생량만 사용합니다.
-  const massActivity = Array.isArray(recentEvents)
-    && recentEvents.some(event =>
-      event
-      && Number.isInteger(event.ageSeconds)
-      && event.ageSeconds >= 0
-      && event.ageSeconds <= 300
-      && Number.isInteger(event.count)
-      && event.count >= 10
-    );
+  // recentEvents는 계약상 이미 엔진이 제공한 "최근 사건"입니다.
+  // 특정 kind나 임의의 시간 제한에 의존하지 않고,
+  // 사건들의 발생 횟수를 합산해서 반복 활동 여부를 판정합니다.
+  const recentActivityCount = Array.isArray(recentEvents)
+    ? recentEvents.reduce((total, event) => {
+      if (
+        !event
+        || !Number.isInteger(event.ageSeconds)
+        || event.ageSeconds < 0
+        || !Number.isInteger(event.count)
+        || event.count < 0
+      ) {
+        return total;
+      }
+
+      return total + event.count;
+    }, 0)
+    : 0;
+
+  const massActivity = recentActivityCount > 1;
 
   return unusualTime && unusualNetwork && massActivity;
 }
