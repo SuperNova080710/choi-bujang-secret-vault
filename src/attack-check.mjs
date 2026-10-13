@@ -1,7 +1,7 @@
 // The student changes this check as each stage adds an attack to the same app.
 // Never return tokens, private keys, real names, or note bodies.
 export async function runAttackChecks(config) {
-  if (![3, 4, 5, 6].includes(config.step)) {
+  if (![3, 4, 5, 6, 7].includes(config.step)) {
     throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   }
 
@@ -331,6 +331,67 @@ export async function runAttackChecks(config) {
       observed: unregisteredDenied
         ? '미등록 기기의 요청이 device_not_registered 사유로 거부됨'
         : '미등록 기기의 요청이 예상한 거부 결과로 판정되지 않음',
+    });
+  }
+
+  // 7단계: 복합 이상 접속과 재인증 값만으로 우회하는 시도를 가상 점검
+  if (config.step >= 7) {
+    const { decide } = await import('./decider.mjs');
+
+    const suspiciousRequest = {
+      schema: 'aleph.decision.v1',
+      requestId: crypto.randomUUID(),
+      deviceRegistered: true,
+      stepUp: { verified: false, authAgeSeconds: null },
+      recentEvents: [
+        { kind: 'risk_signal', ageSeconds: 60, count: 20 },
+      ],
+      signals: {
+        source: 'judge_fixture',
+        region: 'foreign',
+        network: 'unusual',
+        hour: 3,
+      },
+    };
+
+    const suspiciousDecision = await decide(suspiciousRequest);
+
+    const suspiciousRequiresStepUp =
+      suspiciousDecision?.schema === 'aleph.decision.v1' &&
+      suspiciousDecision.requestId === suspiciousRequest.requestId &&
+      suspiciousDecision.decision === 'step_up' &&
+      suspiciousDecision.reasonCode === 'step_up_required' &&
+      Array.isArray(suspiciousDecision.ruleIds) &&
+      suspiciousDecision.ruleIds.includes('step_up_required');
+
+    results.push({
+      attackId: 'composite_risk_requires_step_up',
+      expected: '이상 시간·낯선 네트워크·최근 대량 조회가 함께 발생하면 step_up이어야 함',
+      observed: suspiciousRequiresStepUp
+        ? '복합 이상 가상 요청이 step_up으로 판정됨'
+        : '복합 이상 가상 요청이 예상한 추가 확인 결과로 판정되지 않음',
+    });
+
+    const claimedReverifiedRequest = {
+      ...suspiciousRequest,
+      requestId: crypto.randomUUID(),
+      stepUp: { verified: true, authAgeSeconds: 60 },
+    };
+
+    const claimedReverifiedDecision = await decide(claimedReverifiedRequest);
+
+    const stillRequiresStepUp =
+      claimedReverifiedDecision?.schema === 'aleph.decision.v1' &&
+      claimedReverifiedDecision.requestId === claimedReverifiedRequest.requestId &&
+      claimedReverifiedDecision.decision === 'step_up' &&
+      claimedReverifiedDecision.reasonCode === 'step_up_required';
+
+    results.push({
+      attackId: 'step_up_claim_does_not_bypass',
+      expected: '실제 재인증 검증 계약이 없으므로 verified 값만으로 복합 이상 요청을 허용하지 않아야 함',
+      observed: stillRequiresStepUp
+        ? 'verified 값만 전달한 요청도 step_up으로 유지됨'
+        : 'verified 값만 전달한 요청의 판정이 예상과 다름',
     });
   }
 
