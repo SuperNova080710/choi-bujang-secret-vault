@@ -214,66 +214,23 @@ function resourceForRequest(request) {
   return null;
 }
 
-function escapeRegExp(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
-}
-
-function resourceBelongsToSubject(resourcePart, subjectId) {
-  if (
-    typeof resourcePart !== 'string'
-    || typeof subjectId !== 'string'
-    || resourcePart.length === 0
-    || subjectId.length === 0
-  ) {
-    return false;
-  }
-
-  // 기존 6·7단계 fixture를 보존합니다.
-  if (
-    resourcePart === 'demo'
-    && subjectId === 'learner_fixture'
-  ) {
-    return true;
-  }
-
-  if (resourcePart === subjectId) {
-    return true;
-  }
-
-  // subjectId가 자원 ID 안에 들어갈 때에는
-  // 임의 부분 문자열이 아니라 식별자 구분자 경계를 요구합니다.
-  const escapedSubjectId = escapeRegExp(subjectId);
-
-  const ownerPattern = new RegExp(
-    `(?:^|[._~-])${escapedSubjectId}(?:$|[._~-])`,
-    'u',
-  );
-
-  return ownerPattern.test(resourcePart);
-}
-
 function loadResourceBindings() {
   const raw = typeof process !== 'undefined'
     ? process.env.ALEPH_RESOURCE_BINDINGS
     : undefined;
 
   if (!raw) {
-    return [...STARTER_RESOURCE_BINDINGS];
+    return STARTER_RESOURCE_BINDINGS;
   }
 
   try {
     const parsed = JSON.parse(raw);
 
-    if (!Array.isArray(parsed)) {
-      return [...STARTER_RESOURCE_BINDINGS];
-    }
-
-    return [
-      ...STARTER_RESOURCE_BINDINGS,
-      ...parsed,
-    ];
+    return Array.isArray(parsed)
+      ? parsed
+      : [];
   } catch {
-    return [...STARTER_RESOURCE_BINDINGS];
+    return [];
   }
 }
 
@@ -324,9 +281,8 @@ export function hasZoneAccess(
   }
 
   /*
-   * 본인 메모 목록과 새 메모 생성은 특정 타인 자원을 직접
-   * 선택하지 않습니다. 실제 API는 로그인 사용자 owner_id로
-   * 목록/생성을 다시 제한합니다.
+   * 목록과 생성은 특정 타인의 단건 자원을 직접 선택하지 않습니다.
+   * 실제 API는 검증된 로그인 사용자의 owner_id로 제한합니다.
    */
   if (
     resource.family === 'notes'
@@ -339,37 +295,16 @@ export function hasZoneAccess(
   }
 
   /*
-   * 명시적으로 등록된 서버 측 자원 연결이 있으면
-   * 그 연결을 최우선으로 사용합니다.
+   * 단건 메모와 강사 공지는 서버가 제공한 정확한 자원 바인딩만
+   * 권한 근거로 사용합니다.
+   *
+   * 자원 ID 문자열에서 소유자를 추측하지 않습니다.
    */
-  if (bindingAllows(request, resource, bindings)) {
-    return true;
-  }
-
-  /*
-   * 메모 단건은 엔진의 subjectId와 자원 식별자의 소유자 경계를
-   * 대조합니다. 타인의 subjectId가 들어간 자원은 허용하지 않습니다.
-   */
-  if (
-    resource.family === 'notes'
-    && resource.kind === 'item'
-  ) {
-    return resourceBelongsToSubject(
-      resource.resourcePart,
-      request.subjectId,
-    );
-  }
-
-  /*
-   * 강사 공지 변경은 추측으로 권한을 부여하지 않습니다.
-   * 서버 측 binding에서 instructor:true가 확인된 경우에만
-   * 위 bindingAllows 단계에서 허용됩니다.
-   */
-  if (resource.family === 'announcements') {
-    return false;
-  }
-
-  return false;
+  return bindingAllows(
+    request,
+    resource,
+    bindings,
+  );
 }
 
 export function resourceAllowed(
