@@ -181,7 +181,7 @@ export async function runAttackChecks(config) {
       : `공개 정적 /data.json에 가상 자료가 남아 있거나 응답을 확인할 수 없음 (HTTP ${staticResponse.status})`,
   });
 
-    if (config.step >= 5) {
+  if (config.step >= 5) {
     const pageResponse = await fetch(new URL('/', app), {
       redirect: 'error',
       signal: timeout(),
@@ -444,32 +444,41 @@ export async function runAttackChecks(config) {
     };
 
     const ownNoteDecision = await decide(ownNoteRequest);
+    const ownResourcesAllowed =
+      ownNoteDecision?.decision === 'allow'
+      && ownNoteDecision.reasonCode === 'approved'
+      && Array.isArray(ownNoteDecision.ruleIds)
+      && ownNoteDecision.ruleIds.includes('resource_scope');
 
-    const ownListRequest = {
+    results.push({
+      attackId: 'own_resource_allowed',
+      expected: '본인 메모 단건은 resource_scope 규칙으로 허용되어야 함',
+      observed: ownResourcesAllowed
+        ? '본인 메모 단건이 allow로 판정됨'
+        : '본인 메모 단건이 예상대로 allow로 판정되지 않음',
+    });
+
+    const listRouteRequest = {
       ...decisionFixture,
       requestId: crypto.randomUUID(),
       path: '/notes',
       route: 'GET /notes',
     };
 
-    const ownListDecision = await decide(ownListRequest);
+    const listRouteDecision = await decide(listRouteRequest);
 
-    const ownResourcesAllowed =
-      ownNoteDecision?.decision === 'allow'
-      && ownNoteDecision.reasonCode === 'approved'
-      && Array.isArray(ownNoteDecision.ruleIds)
-      && ownNoteDecision.ruleIds.includes('resource_scope')
-      && ownListDecision?.decision === 'allow'
-      && ownListDecision.reasonCode === 'approved'
-      && Array.isArray(ownListDecision.ruleIds)
-      && ownListDecision.ruleIds.includes('resource_scope');
+    const listRouteDenied =
+      listRouteDecision?.decision === 'deny'
+      && listRouteDecision.reasonCode === 'resource_not_allowed'
+      && Array.isArray(listRouteDecision.ruleIds)
+      && listRouteDecision.ruleIds.includes('resource_scope');
 
     results.push({
-      attackId: 'own_resource_allowed',
-      expected: '본인 메모 단건과 본인 메모 목록은 resource_scope 규칙으로 허용되어야 함',
-      observed: ownResourcesAllowed
-        ? '본인 메모 단건과 목록이 모두 allow로 판정됨'
-        : '본인 정상 자료 요청 중 하나 이상이 allow로 판정되지 않음',
+      attackId: 'note_list_route_denied',
+      expected: '판정기에서 메모 전체 목록 구역은 허용되지 않아야 함',
+      observed: listRouteDenied
+        ? '메모 전체 목록 경로가 resource_not_allowed로 거부됨'
+        : '메모 전체 목록 경로가 예상대로 거부되지 않음',
     });
 
     const otherNoteRequest = {
