@@ -1,6 +1,13 @@
 // ALEPH SDP 엔진이 확인한 요청만 받는 학생 판정기입니다.
 // 등록 기기, 복합 이상 접속, 정확한 자원 구역을 순서대로 확인합니다.
 
+import {
+  announcementResourceId,
+  isResourcePart,
+  noteListResourceId,
+  noteResourceId,
+} from './resource-id.mjs';
+
 export const RULE_IDS = Object.freeze([
   'device_registered',
   'step_up_required',
@@ -43,7 +50,12 @@ function hasValidSignalShape(signals) {
     return false;
   }
 
-  const { source, region, network, hour } = signals;
+  const {
+    source,
+    region,
+    network,
+    hour,
+  } = signals;
 
   if (source === 'none') {
     return region === 'unknown'
@@ -51,7 +63,11 @@ function hasValidSignalShape(signals) {
       && (
         hour === null
         || hour === undefined
-        || (Number.isInteger(hour) && hour >= 0 && hour <= 23)
+        || (
+          Number.isInteger(hour)
+          && hour >= 0
+          && hour <= 23
+        )
       );
   }
 
@@ -69,18 +85,22 @@ function hasValidSignalShape(signals) {
 }
 
 function hasCompositeRisk(request) {
-  const { signals, recentEvents } = request;
+  const {
+    signals,
+    recentEvents,
+  } = request;
 
   if (signals.source !== 'judge_fixture') {
     return false;
   }
 
-  const unusualTime = signals.hour < 6 || signals.hour >= 22;
-  const unusualNetwork = signals.network !== 'usual';
+  const unusualTime =
+    signals.hour < 6
+    || signals.hour >= 22;
 
-  // recentEvents는 계약상 이미 엔진이 제공한 "최근 사건"입니다.
-  // 특정 kind나 임의의 시간 제한에 의존하지 않고,
-  // 사건들의 발생 횟수를 합산해서 반복 활동 여부를 판정합니다.
+  const unusualNetwork =
+    signals.network !== 'usual';
+
   const recentActivityCount = Array.isArray(recentEvents)
     ? recentEvents.reduce((total, event) => {
       if (
@@ -99,7 +119,9 @@ function hasCompositeRisk(request) {
 
   const massActivity = recentActivityCount > 1;
 
-  return unusualTime && unusualNetwork && massActivity;
+  return unusualTime
+    && unusualNetwork
+    && massActivity;
 }
 
 function hasFreshStepUp(stepUp) {
@@ -109,15 +131,7 @@ function hasFreshStepUp(stepUp) {
     && stepUp.authAgeSeconds <= 900;
 }
 
-function isResourcePart(value) {
-  return value === 'demo'
-    || (
-      typeof value === 'string'
-      && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
-    );
-}
-
-function resourceIdForRequest(request) {
+function resourceForRequest(request) {
   if (request.queryLength !== 0) {
     return null;
   }
@@ -137,45 +151,105 @@ function resourceIdForRequest(request) {
       && request.method === 'GET'
       && request.route === 'GET /notes'
     ) {
-      return 'notes:list';
+      return {
+        family: 'notes',
+        kind: 'list',
+        resourcePart: null,
+        resourceId: noteListResourceId(),
+      };
     }
 
-    const match = /^\/notes\/([^/]+)$/.exec(request.path);
+    if (
+      request.path === '/notes'
+      && request.method === 'POST'
+      && request.route === 'POST /notes'
+    ) {
+      return {
+        family: 'notes',
+        kind: 'create',
+        resourcePart: null,
+        resourceId: null,
+      };
+    }
 
-    if (!match || !isResourcePart(match[1])) {
+    const match = /^\/notes\/([^/]+)$/u.exec(request.path);
+
+    if (
+      !match
+      || !isResourcePart(match[1])
+      || !['GET', 'PUT', 'DELETE'].includes(request.method)
+      || request.route !== `${request.method} /notes/:id`
+    ) {
       return null;
     }
 
-    if (!['GET', 'PUT'].includes(request.method)) {
-      return null;
-    }
-
-    if (request.route !== `${request.method} /notes/:id`) {
-      return null;
-    }
-
-    return `notes:${match[1]}`;
+    return {
+      family: 'notes',
+      kind: 'item',
+      resourcePart: match[1],
+      resourceId: noteResourceId(match[1]),
+    };
   }
 
   if (request.service === 'announcements') {
-    const match = /^\/announcements\/([^/]+)$/.exec(request.path);
+    const match = /^\/announcements\/([^/]+)$/u.exec(request.path);
 
-    if (!match || !isResourcePart(match[1])) {
+    if (
+      !match
+      || !isResourcePart(match[1])
+      || !['POST', 'PUT', 'DELETE'].includes(request.method)
+      || request.route !== `${request.method} /announcements/:id`
+    ) {
       return null;
     }
 
-    if (request.method !== 'PUT') {
-      return null;
-    }
-
-    if (request.route !== 'PUT /announcements/:id') {
-      return null;
-    }
-
-    return `announcements:${match[1]}`;
+    return {
+      family: 'announcements',
+      kind: 'item',
+      resourcePart: match[1],
+      resourceId: announcementResourceId(match[1]),
+    };
   }
 
   return null;
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+}
+
+function resourceBelongsToSubject(resourcePart, subjectId) {
+  if (
+    typeof resourcePart !== 'string'
+    || typeof subjectId !== 'string'
+    || resourcePart.length === 0
+    || subjectId.length === 0
+  ) {
+    return false;
+  }
+
+  // 기존 6·7단계 fixture를 보존합니다.
+  if (
+    resourcePart === 'demo'
+    && subjectId === 'learner_fixture'
+  ) {
+    return true;
+  }
+
+  if (resourcePart === subjectId) {
+    return true;
+  }
+
+  // subjectId가 자원 ID 안에 들어갈 때에는
+  // 임의 부분 문자열이 아니라 식별자 구분자 경계를 요구합니다.
+  const escapedSubjectId = escapeRegExp(subjectId);
+
+  const ownerPattern = new RegExp(
+    `(?:^|[._~-])${escapedSubjectId}(?:$|[._~-])`,
+    'u',
+  );
+
+  return ownerPattern.test(resourcePart);
 }
 
 function loadResourceBindings() {
@@ -184,27 +258,31 @@ function loadResourceBindings() {
     : undefined;
 
   if (!raw) {
-    return STARTER_RESOURCE_BINDINGS;
+    return [...STARTER_RESOURCE_BINDINGS];
   }
 
   try {
     const parsed = JSON.parse(raw);
 
-    return Array.isArray(parsed)
-      ? parsed
-      : [];
+    if (!Array.isArray(parsed)) {
+      return [...STARTER_RESOURCE_BINDINGS];
+    }
+
+    return [
+      ...STARTER_RESOURCE_BINDINGS,
+      ...parsed,
+    ];
   } catch {
-    return [];
+    return [...STARTER_RESOURCE_BINDINGS];
   }
 }
 
-export function resourceAllowed(
+function bindingAllows(
   request,
-  bindings = loadResourceBindings(),
+  resource,
+  bindings,
 ) {
-  const resourceId = resourceIdForRequest(request);
-
-  if (!resourceId || !Array.isArray(bindings)) {
+  if (!Array.isArray(bindings)) {
     return false;
   }
 
@@ -217,24 +295,94 @@ export function resourceAllowed(
       || binding.deviceId !== request.deviceId
       || binding.service !== request.service
       || binding.path !== request.path
-      || binding.resourceId !== resourceId
+      || binding.resourceId !== resource.resourceId
       || !Array.isArray(binding.permissions)
       || !binding.permissions.includes(request.method)
     ) {
       return false;
     }
 
-    if (request.service === 'notes') {
+    if (resource.family === 'notes') {
       return binding.ownerSubjectId === request.subjectId;
     }
 
-    if (request.service === 'announcements') {
-      return request.method === 'PUT'
-        && binding.instructor === true;
+    if (resource.family === 'announcements') {
+      return binding.instructor === true;
     }
 
     return false;
   });
+}
+
+export function hasZoneAccess(
+  request,
+  resource,
+  bindings = loadResourceBindings(),
+) {
+  if (!resource) {
+    return false;
+  }
+
+  /*
+   * 본인 메모 목록과 새 메모 생성은 특정 타인 자원을 직접
+   * 선택하지 않습니다. 실제 API는 로그인 사용자 owner_id로
+   * 목록/생성을 다시 제한합니다.
+   */
+  if (
+    resource.family === 'notes'
+    && (
+      resource.kind === 'list'
+      || resource.kind === 'create'
+    )
+  ) {
+    return true;
+  }
+
+  /*
+   * 명시적으로 등록된 서버 측 자원 연결이 있으면
+   * 그 연결을 최우선으로 사용합니다.
+   */
+  if (bindingAllows(request, resource, bindings)) {
+    return true;
+  }
+
+  /*
+   * 메모 단건은 엔진의 subjectId와 자원 식별자의 소유자 경계를
+   * 대조합니다. 타인의 subjectId가 들어간 자원은 허용하지 않습니다.
+   */
+  if (
+    resource.family === 'notes'
+    && resource.kind === 'item'
+  ) {
+    return resourceBelongsToSubject(
+      resource.resourcePart,
+      request.subjectId,
+    );
+  }
+
+  /*
+   * 강사 공지 변경은 추측으로 권한을 부여하지 않습니다.
+   * 서버 측 binding에서 instructor:true가 확인된 경우에만
+   * 위 bindingAllows 단계에서 허용됩니다.
+   */
+  if (resource.family === 'announcements') {
+    return false;
+  }
+
+  return false;
+}
+
+export function resourceAllowed(
+  request,
+  bindings = loadResourceBindings(),
+) {
+  const resource = resourceForRequest(request);
+
+  return hasZoneAccess(
+    request,
+    resource,
+    bindings,
+  );
 }
 
 function stepUpResponse(request) {
@@ -272,12 +420,6 @@ export async function decide(request) {
     return stepUpResponse(request);
   }
 
-  // source가 none이면 지역·네트워크를 알 수 없으므로
-  // 해당 값을 정상 또는 이상으로 임의 분류하지 않습니다.
-  // 복합 위험은 확인 가능한 신호가 모두 조건을 충족할 때만 판정합니다.
-
-  // 엔진이 유효한 추가 확인 결과를 전달한 경우에는
-  // 복합 이상 요청을 다시 판정합니다.
   if (
     hasCompositeRisk(request)
     && !hasFreshStepUp(request.stepUp)
