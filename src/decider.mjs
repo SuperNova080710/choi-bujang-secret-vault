@@ -4,7 +4,6 @@
 import {
   announcementResourceId,
   isResourcePart,
-  noteListResourceId,
   noteResourceId,
 } from './resource-id.mjs';
 
@@ -27,17 +26,6 @@ const STARTER_RESOURCE_BINDINGS = Object.freeze([
     path: '/notes/demo',
     resourceId: 'notes:demo',
     permissions: Object.freeze(['GET', 'PUT']),
-  }),
-  Object.freeze({
-    classId: 'class_fixture',
-    projectId: 'project_fixture',
-    subjectId: 'learner_fixture',
-    ownerSubjectId: 'learner_fixture',
-    deviceId: 'a'.repeat(16),
-    service: 'notes',
-    path: '/notes',
-    resourceId: 'notes:list',
-    permissions: Object.freeze(['GET']),
   }),
 ]);
 
@@ -146,32 +134,6 @@ function resourceForRequest(request) {
   }
 
   if (request.service === 'notes') {
-    if (
-      request.path === '/notes'
-      && request.method === 'GET'
-      && request.route === 'GET /notes'
-    ) {
-      return {
-        family: 'notes',
-        kind: 'list',
-        resourcePart: null,
-        resourceId: noteListResourceId(),
-      };
-    }
-
-    if (
-      request.path === '/notes'
-      && request.method === 'POST'
-      && request.route === 'POST /notes'
-    ) {
-      return {
-        family: 'notes',
-        kind: 'create',
-        resourcePart: null,
-        resourceId: null,
-      };
-    }
-
     const match = /^\/notes\/([^/]+)$/u.exec(request.path);
 
     if (
@@ -281,24 +243,8 @@ export function hasZoneAccess(
   }
 
   /*
-   * 목록과 생성은 특정 타인의 단건 자원을 직접 선택하지 않습니다.
-   * 실제 API는 검증된 로그인 사용자의 owner_id로 제한합니다.
-   */
-  if (
-    resource.family === 'notes'
-    && (
-      resource.kind === 'list'
-      || resource.kind === 'create'
-    )
-  ) {
-    return true;
-  }
-
-  /*
-   * 단건 메모와 강사 공지는 서버가 제공한 정확한 자원 바인딩만
-   * 권한 근거로 사용합니다.
-   *
-   * 자원 ID 문자열에서 소유자를 추측하지 않습니다.
+   * 모든 자원 요청은 서버가 제공한 정확한 binding을 통과해야 합니다.
+   * 사용자·기기·서비스·메서드·경로·자원 ID를 우회해서 허용하지 않습니다.
    */
   return bindingAllows(
     request,

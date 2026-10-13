@@ -1,16 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-    resourceAllowed,
-} from '../src/decider.mjs';
-
-import {
     decide,
+    resourceAllowed,
 } from '../src/decider.mjs';
 
 function request(overrides = {}) {
     return {
-        schema: 'aleph.xdr.request.v1',
+        schema: 'aleph.decision.v1',
         requestId: crypto.randomUUID(),
         classId: 'class_fixture',
         projectId: 'project_fixture',
@@ -41,11 +38,16 @@ function request(overrides = {}) {
     };
 }
 
-test('기존 demo fixture의 본인 메모를 허용한다', async () => {
-    const result = await decide(request());
+test('다른 주체의 메모 목록 요청도 거부한다', async () => {
+    const result = await decide(request({
+        subjectId: 'learner_b',
+        path: '/notes',
+        route: 'GET /notes',
+    }));
 
-    assert.equal(result.decision, 'allow');
-    assert.equal(result.reasonCode, 'approved');
+    assert.equal(result.decision, 'deny');
+    assert.equal(result.reasonCode, 'resource_not_allowed');
+    assert.deepEqual(result.ruleIds, ['resource_scope']);
 });
 
 test('B 사용자가 A의 메모를 읽으면 거부한다', async () => {
@@ -57,16 +59,6 @@ test('B 사용자가 A의 메모를 읽으면 거부한다', async () => {
     assert.equal(result.decision, 'deny');
     assert.equal(result.reasonCode, 'resource_not_allowed');
     assert.deepEqual(result.ruleIds, ['resource_scope']);
-});
-
-test('본인 메모 목록 요청은 허용한다', async () => {
-    const result = await decide(request({
-        subjectId: 'learner_a',
-        path: '/notes',
-        route: 'GET /notes',
-    }));
-
-    assert.equal(result.decision, 'allow');
 });
 
 test('export 기능 경로는 자원 ID로 인정하지 않는다', async () => {
@@ -194,4 +186,16 @@ test('소유권 binding이 없는 단건 메모는 추측해서 허용하지 않
         resourceAllowed(req, []),
         false,
     );
+});
+
+test('메모 목록 경로는 판정기에서 허용하지 않는다', async () => {
+    const result = await decide(request({
+        subjectId: 'learner_fixture',
+        path: '/notes',
+        route: 'GET /notes',
+    }));
+
+    assert.equal(result.decision, 'deny');
+    assert.equal(result.reasonCode, 'resource_not_allowed');
+    assert.deepEqual(result.ruleIds, ['resource_scope']);
 });
