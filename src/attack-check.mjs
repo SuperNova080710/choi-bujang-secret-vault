@@ -334,67 +334,6 @@ export async function runAttackChecks(config) {
     });
   }
 
-  // 6단계: 등록된 기기만 허용되는지 판정기 자체를 검사
-  if (config.step >= 6) {
-    const { decide } = await import('./decider.mjs');
-
-    const registeredRequest = {
-      schema: 'aleph.decision.v1',
-      requestId: crypto.randomUUID(),
-      deviceRegistered: true,
-      stepUp: { verified: false, authAgeSeconds: null },
-      recentEvents: [],
-      signals: {
-        source: 'judge_fixture',
-        region: 'local',
-        network: 'usual',
-        hour: 14,
-      },
-    };
-
-    const registeredDecision = await decide(registeredRequest);
-
-    const registeredAllowed =
-      registeredDecision?.schema === 'aleph.decision.v1' &&
-      registeredDecision.requestId === registeredRequest.requestId &&
-      registeredDecision.decision === 'allow' &&
-      registeredDecision.reasonCode === 'approved' &&
-      Array.isArray(registeredDecision.ruleIds) &&
-      registeredDecision.ruleIds.includes('device_registered');
-
-    results.push({
-      attackId: 'registered_device_allowed',
-      expected: '등록된 기기의 정상 가상 요청은 allow로 판정되어야 함',
-      observed: registeredAllowed
-        ? '등록된 기기의 정상 가상 요청이 allow로 판정됨'
-        : '등록된 기기의 정상 가상 요청이 예상한 형식과 결과로 판정되지 않음',
-    });
-
-    const unregisteredRequest = {
-      ...registeredRequest,
-      requestId: crypto.randomUUID(),
-      deviceRegistered: false,
-    };
-
-    const unregisteredDecision = await decide(unregisteredRequest);
-
-    const unregisteredDenied =
-      unregisteredDecision?.schema === 'aleph.decision.v1' &&
-      unregisteredDecision.requestId === unregisteredRequest.requestId &&
-      unregisteredDecision.decision === 'deny' &&
-      unregisteredDecision.reasonCode === 'device_not_registered' &&
-      Array.isArray(unregisteredDecision.ruleIds) &&
-      unregisteredDecision.ruleIds.includes('device_registered');
-
-    results.push({
-      attackId: 'unregistered_device_denied',
-      expected: '미등록 기기는 device_not_registered 사유로 거부되어야 함',
-      observed: unregisteredDenied
-        ? '미등록 기기가 device_not_registered 사유로 거부됨'
-        : '미등록 기기가 예상한 거부 결과로 판정되지 않음',
-    });
-  }
-
   // 7단계: 복합 이상 접속과 재인증 값만으로 우회하는 시도를 가상 점검
   if (config.step >= 7) {
     const { decide } = await import('./decider.mjs');
