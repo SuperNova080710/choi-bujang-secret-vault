@@ -19,6 +19,12 @@ export default async function handler(request, response) {
             .json(authentication.response.body);
     }
 
+    const queryKeys = Object.keys(request.query ?? {});
+
+    if (queryKeys.length > 0) {
+        return response.status(400).json({ error: 'QUERY_NOT_ALLOWED' });
+    }
+
     let supabase;
 
     try {
