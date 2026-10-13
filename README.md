@@ -775,3 +775,210 @@ git diff --check
 - `git diff --check`: 통과
 
 이 결과는 로컬 정적 검사와 가상 요청 자기점검 결과이며, 실제 심판 통과나 배포 성공을 의미하지 않습니다.
+
+## 8단계 최종 결과
+
+8단계 자원 구역 판정과 API 소유권 검증을 최종 수정한 뒤 Git push, PR merge, Vercel 배포 및 심판 제출까지 완료했습니다.
+
+최종 `main` 기준 merge 커밋:
+
+```text
+a952b28 Merge pull request #45 from SuperNova080710/stage8-fix-resource-routing
+```
+
+사용자가 최종 심판 결과를 직접 확인했으며 **8단계는 통과 완료 상태**입니다.
+
+앞선 8단계 기록 중 실제 배포·심판 제출이 아직 확인되지 않았다고 적힌 부분은 당시 중간 저장점의 상태이며, 현재 최신 상태는 이 절을 기준으로 합니다.
+
+## 9단계 현재 상태 — 도플갱어를 찾고 권한을 거둡니다
+
+9단계에서는 검증된 가상 조회 사건을 별도의 탐지기로 분석하고, 같은 가명 사용자의 단시간 대량 GET 조회가 확인되면 실제 권한을 직접 변경하지 않고 `propose_revocation` 회수 제안만 생성합니다.
+
+기존 1~8단계의 로그인, HttpOnly 쿠키 인증, Judge Bearer 인증, 등록 기기 판정, 복합 이상 접속 `step_up`, 자원 구역 판정 및 최종 API의 소유권·강사 권한 검증은 유지합니다.
+
+### 탐지 사건 계약
+
+`src/detect.mjs`를 수정하기 전에 `docs/DETECT_EVENTS.md`의 9단계 가상 사건 계약을 확인했습니다.
+
+로컬 `detect(events)`에 전달되는 사건은 다음 값만 사용합니다.
+
+```
+at
+method
+identity.sub
+```
+
+- `identity.sub`는 운영 측이 검증하여 전달하는 가명 주체로 취급합니다.
+- 브라우저가 임의로 보낸 사용자 번호를 신원으로 사용하지 않습니다.
+- 메모 제목·본문, 토큰, 비밀번호, 실명 또는 서버 전용 비밀값을 탐지 입력으로 저장하거나 출력하지 않습니다.
+- 현재 로컬 사건 계약에는 `deviceId`, `network`, `region`, 기존 판정 결과가 없습니다.
+- 따라서 계약에 없는 기기나 네트워크 값을 `src/detect.mjs`에서 임의로 만들어 사용하지 않습니다.
+
+### `burst_read` 탐지 규칙
+
+`src/detect.mjs`는 가명 사용자별 GET 사건을 분리하여 검사합니다.
+
+탐지 조건:
+
+```
+같은 identity.sub
++
+GET 요청
++
+어느 연속 10분 구간에서든
++
+120건 초과
+```
+
+조건을 만족하면 다음 결과를 반환합니다.
+
+```
+{
+  "action": "propose_revocation",
+  "reasonCode": "burst_read",
+  "subject": "해당 가명 사용자"
+}
+```
+
+그 밖의 사건은 다음 결과를 유지합니다.
+
+```
+{
+  "action": "observe"
+}
+```
+
+경계 조건:
+
+- 정확히 120건은 `observe`
+- 121건부터 `propose_revocation`
+- 서로 다른 `identity.sub`의 사건은 합산하지 않음
+- 전체 사건이 많아도 같은 10분 구간에 121건이 없으면 회수 제안을 내지 않음
+- GET이 아닌 요청은 `burst_read` 집계에 포함하지 않음
+- 사건 배열 순서를 신뢰하지 않고 사용자별 시각을 정렬한 뒤 10분 슬라이딩 윈도우를 검사함
+
+### 회수 제안의 범위
+
+`propose_revocation`은 실제 세션이나 기기 권한을 직접 변경하는 동작이 아닙니다.
+
+9단계 구현에서는 다음 작업을 하지 않습니다.
+
+```
+세션 직접 삭제
+토큰 직접 폐기
+기기 권한 직접 변경
+Supabase 로그아웃 강제 실행
+별도의 회수 API 생성
+기존 allow / deny / step_up 응답 계약 변경
+```
+
+현재 로컬 `detect(events)` 계약에는 가상 기기 식별자가 없으므로 `deviceId`나 `targetDeviceId`를 임의로 생성하지 않습니다.
+
+실제 운영 엔진의 사건 전달, 기기·세션 권한 회수, 회수된 신원이나 남은 세션의 재시도 차단, 회수까지 걸린 시간은 심판 및 운영 연동에서 별도로 확인해야 합니다.
+
+### 9단계 직접 자기점검
+
+`src/attack-check.mjs`가 9단계를 인식하도록 확장했습니다.
+
+기존 3~8단계 점검을 보존하면서 다음 세 가지 가상 탐지 점검을 추가했습니다.
+
+- 정상 조회 30건 → `observe`
+- 정확히 120건 → `observe`
+- 121건 폭주 조회 → `propose_revocation / burst_read`
+
+`src/attack-check.mjs`의 전체 `attackId` 수는 20개이며 `scripts/bundle.mjs`가 허용하는 최대 20개 범위 안에 있습니다.
+
+### 9단계 제출 설정
+
+`aleph.config.json`은 9단계에 맞춰 다음과 같이 변경했습니다.
+
+```
+step: 9
+```
+
+다음 기존 설정은 변경하지 않았습니다.
+
+- `repoUrl`
+- `publicAppUrl`
+- `judgeIssuer`
+- `identityProvider`
+- `allowedRoutes`
+- `originalApiUrl`
+- `restoreRoute`
+
+8단계에서 심판을 통과한 route zone 설정과 기존 API 허용 경로를 그대로 유지합니다.
+
+### 정책 기록
+
+`package/POLICIES.md`에 실제 구현된 9단계 탐지 규칙을 추가했습니다.
+
+```
+burst_read
+```
+
+또한 8단계 정책 이름은 실제 구현과 맞게:
+
+```
+resource_zone
+```
+
+으로 기록합니다.
+
+### 9단계 로컬 검증
+
+실행한 검사:
+
+```
+node --check src/detect.mjs
+node --check src/attack-check.mjs
+npm run detect:test
+git diff --check
+```
+
+확인된 결과:
+
+```
+통과 · 정상 조회 30건
+통과 · 10분 안에 120건
+통과 · 10분 안에 121건
+통과 · 폭주 조회 200건
+통과 · 서로 다른 사용자 각 100건
+통과 · 10분 밖으로 흩어진 조회 200건
+```
+
+`src/attack-check.mjs`의 `attackId` 개수:
+
+```
+20
+```
+
+구문 검사와 `git diff --check`도 오류 없이 통과했습니다.
+
+### 현재 검증 상태
+
+현재 상태를 구분하면 다음과 같습니다.
+
+- 9단계 사건 입력 최소화: 구현 완료
+- 사용자별 GET 사건 분리: 구현 완료
+- 10분 슬라이딩 윈도우: 구현 완료
+- 정확히 120건 경계 처리: 구현 완료
+- 121건 이상 `burst_read` 탐지: 구현 완료
+- `propose_revocation` 제안 생성: 구현 완료
+- 정상 사건 `observe` 유지: 구현 완료
+- 다른 사용자 사건 비합산: 구현 완료
+- 10분 밖 사건 비합산: 구현 완료
+- `npm run detect:test`: 6개 가상 사건 모두 통과
+- `node --check src/detect.mjs`: 통과
+- `node --check src/attack-check.mjs`: 통과
+- `git diff --check`: 통과
+- 실제 운영 엔진의 사건 전달: 아직 확인하지 않음
+- 실제 기기·세션 권한 회수: 아직 확인하지 않음
+- 회수된 신원으로 다음 요청 재시도 차단: 아직 확인하지 않음
+- 남은 탈취 세션 재접속 차단: 아직 확인하지 않음
+- 회수된 도플갱어의 다른 자원 이동 차단: 아직 확인하지 않음
+- 회수까지 걸린 시간 측정: 아직 확인하지 않음
+- 9단계 Vercel 배포: 아직 확인하지 않음
+- 9단계 심판 제출: 아직 확인하지 않음
+- 9단계 심판 통과: 아직 확인하지 않음
+
+`npm run detect:test`와 `src/attack-check.mjs`는 가상 사건에 대한 학생 자기점검입니다. 이 결과만으로 실제 접속 회수, 운영 엔진 연결 또는 심판 통과를 주장하지 않습니다.

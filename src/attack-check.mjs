@@ -1,7 +1,7 @@
 // The student changes this check as each stage adds an attack to the same app.
 // Never return tokens, private keys, real names, or note bodies.
 export async function runAttackChecks(config) {
-  if (![3, 4, 5, 6, 7, 8].includes(config.step)) {
+  if (![3, 4, 5, 6, 7, 8, 9].includes(config.step)) {
     throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   }
 
@@ -528,6 +528,62 @@ export async function runAttackChecks(config) {
       observed: studentAnnouncementDenied
         ? '일반 학생의 공지 수정 요청이 policy_denied로 거부됨'
         : '일반 학생의 공지 수정 요청이 예상대로 거부되지 않음',
+    });
+  }
+
+  // 9단계: 가명 사용자별 다량 GET 조회 탐지와 회수 제안 자기점검
+  if (config.step >= 9) {
+    const { detect } = await import('./detect.mjs');
+
+    const start = Date.UTC(2026, 9, 1, 0, 0, 0);
+
+    const detectionReads = (count, subject = 'learner_fixture') =>
+      Array.from({ length: count }, (_, index) => ({
+        at: new Date(start + index * 2 * 1000).toISOString(),
+        method: 'GET',
+        identity: { sub: subject },
+      }));
+
+    const normalDetection = detect(detectionReads(30));
+    const normalObserved =
+      normalDetection?.action === 'observe'
+      && Object.keys(normalDetection).length === 1;
+
+    results.push({
+      attackId: 'normal_read_observed',
+      expected: '정상적인 가상 조회는 회수 제안 없이 observe로 유지되어야 함',
+      observed: normalObserved
+        ? '정상 조회 30건이 observe로 유지됨'
+        : '정상 조회가 예상한 observe 결과로 유지되지 않음',
+    });
+
+    const boundaryDetection = detect(detectionReads(120));
+    const boundaryObserved =
+      boundaryDetection?.action === 'observe'
+      && Object.keys(boundaryDetection).length === 1;
+
+    results.push({
+      attackId: 'burst_read_boundary_observed',
+      expected: '10분 안의 GET 조회가 정확히 120건이면 회수 제안 대상이 아니어야 함',
+      observed: boundaryObserved
+        ? '정확히 120건의 조회가 observe로 유지됨'
+        : '정확히 120건의 조회가 예상과 다르게 회수 제안됨',
+    });
+
+    const burstDetection = detect(detectionReads(121));
+    const burstProposed =
+      burstDetection?.action === 'propose_revocation'
+      && burstDetection.reasonCode === 'burst_read'
+      && burstDetection.subject === 'learner_fixture'
+      && Object.keys(burstDetection).sort().join(',')
+      === 'action,reasonCode,subject';
+
+    results.push({
+      attackId: 'burst_read_revocation_proposed',
+      expected: '같은 가명 사용자의 10분 안 GET 조회가 120건을 넘으면 burst_read 회수 제안을 내야 함',
+      observed: burstProposed
+        ? '121건의 폭주 조회에 burst_read 회수 제안이 생성됨'
+        : '121건의 폭주 조회가 예상한 회수 제안 결과를 만들지 못함',
     });
   }
 
