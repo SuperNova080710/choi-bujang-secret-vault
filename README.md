@@ -1912,8 +1912,71 @@ GET /api/notes · 잘못된 Bearer
 인증 쿠키를 제외한 요청은 애플리케이션 `/api/notes`에 도달하기 전에
 Vercel SSO로 리다이렉트되므로, 이 결과를 애플리케이션의 `401` 또는 `403` 방어 성공으로 기록하지 않습니다.
 
-따라서 Preview에서는 두 항목을 `미실행`으로 유지하며
-공개 Production 배포 후 다시 실제 API 응답을 확인합니다.
+따라서 Preview에서는 두 항목을 `미실행`으로 유지했습니다.
+이후 공개 Production 배포에서 두 요청을 다시 실행하여 실제 애플리케이션의 HTTP 401 거부 응답을 확인했습니다.
+
+### Production에서 최종 확인한 결과
+
+12단계가 `main`에 병합되고 공개 Production 배포가 완료된 뒤
+Preview Deployment Protection의 영향을 받지 않는 공개 환경에서 다시 실측했습니다.
+
+실제로 확인한 결과:
+
+```text
+Stage 1
+GET /
+→ HTTP 200
+
+Stage 3~5
+GET /api/notes · 무인증
+→ HTTP 401
+→ 애플리케이션 인증 계층에서 거부 확인
+
+Stage 4~5
+GET /api/notes · 잘못된 Bearer
+→ HTTP 401
+→ 잘못된 토큰 거부 확인
+
+Stage 2 / 5
+GET /data.json
+→ HTTP 200
+→ 공개 notes 배열이 비어 있음
+
+Stage 6 / 11
+승인된 현재 기기에서 서명한 GET /api/notes
+→ HTTP 200
+
+Stage 6 / 11
+로그인 상태에서 서명 없이 GET /api/notes
+→ HTTP 403
+
+Stage 11
+서명된 보호 자료 GET
+→ HTTP 200
+
+Stage 11
+서명 없는 보호 자료 GET
+→ HTTP 403
+```
+
+Preview에서는 Vercel Deployment Protection 때문에 판정하지 않았던
+무인증 요청과 잘못된 Bearer 요청도 Production에서는 실제 애플리케이션까지 도달했으며,
+두 요청 모두 HTTP 401로 거부되는 것을 확인했습니다.
+
+따라서 Preview에서 해당 두 항목을 `미실행`으로 유지했던 것은
+배포 보호 계층의 결과를 애플리케이션 방어 결과로 잘못 기록하지 않기 위한 조치였습니다.
+
+현재도 다음 시험은 12단계 화면에서 임의로 실행하거나 통과 처리하지 않습니다.
+
+```
+Stage 7  복합 이상 접속 요청
+Stage 8  본인 메모 단건 GET
+Stage 8  타인 메모 단건 GET
+Stage 9  10분 안 121회 GET
+Stage 10 POST /api/restore/:id
+```
+
+이 항목들은 실제 실행되지 않았으므로 계속 `미실행`으로 구분합니다.
 
 ### 의도적으로 미실행으로 유지한 시험
 
