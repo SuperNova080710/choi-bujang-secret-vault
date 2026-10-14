@@ -20,6 +20,10 @@
       box-sizing: border-box;
     }
 
+    [hidden] {
+      display: none !important;
+    }
+
     body {
       margin: 0;
       min-height: 100vh;
@@ -28,26 +32,32 @@
     }
 
     main {
-      width: min(1480px, calc(100% - 32px));
+      width: min(1640px, calc(100% - 24px));
       margin: 0 auto;
-      padding: 32px 0 56px;
+      padding: 20px 0 44px;
     }
 
     .page-header {
-      margin-bottom: 22px;
+      margin-bottom: 16px;
     }
 
     .eyebrow {
       color: #8ad8df;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 700;
       letter-spacing: .08em;
     }
 
     h1 {
-      margin: 16px 0;
-      font-size: clamp(30px, 7vw, 48px);
-      line-height: 1.2;
+      margin: 10px 0;
+      font-size: clamp(30px, 4vw, 44px);
+      line-height: 1.15;
+    }
+
+    .page-description {
+      margin: 0;
+      font-size: 15px;
+      line-height: 1.55;
     }
 
     h2 {
@@ -81,7 +91,7 @@
     }
 
     .workspace.is-authenticated {
-      grid-template-columns: minmax(380px, 430px) minmax(0, 1fr);
+      grid-template-columns: minmax(470px, 520px) minmax(0, 1fr);
     }
 
     .workspace.is-authenticated .left-panel {
@@ -118,10 +128,20 @@
     .auth-card,
     .note-form-card {
       margin: 0;
-      padding: 20px;
+      padding: 18px;
       border: 1px solid #51667c;
       border-radius: 14px;
       background: #162638;
+    }
+
+    .app-card {
+      padding: 16px;
+    }
+
+    .app-card h2,
+    .auth-card h2 {
+      margin-bottom: 10px;
+      font-size: 21px;
     }
 
     .app-card,
@@ -135,16 +155,26 @@
 
     .app-status,
     .auth-status {
-      margin: 8px 0;
+      margin: 6px 0;
       color: #bfd0e5;
-      font-size: 15px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .app-card .app-status {
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .auth-status {
+      margin-bottom: 10px;
     }
 
     .status-group {
       display: grid;
-      gap: 8px;
-      margin: 14px 0 0;
-      padding: 14px;
+      gap: 6px;
+      margin: 10px 0 0;
+      padding: 11px 12px;
       border: 1px solid #40566d;
       border-radius: 10px;
       background: #0f1b2a;
@@ -155,12 +185,18 @@
     }
 
     .app-caution {
-      margin: 14px 0 0;
-      padding: 12px 14px;
+      margin: 10px 0 0;
+      padding: 9px 11px;
       border: 1px solid #7f6d43;
       border-radius: 9px;
       background: #42371f55;
       color: #f4dfaa;
+      font-size: 12.5px;
+      line-height: 1.5;
+    }
+
+    .app-card button {
+      padding: 9px 13px;
       font-size: 14px;
     }
 
@@ -294,7 +330,7 @@
       }
 
       .workspace.is-authenticated {
-        grid-template-columns: minmax(340px, 390px) minmax(0, 1fr);
+        grid-template-columns: minmax(410px, 460px) minmax(0, 1fr);
       }
     }
 
@@ -321,7 +357,7 @@
     <header class="page-header">
       <div class="eyebrow">BYTE BACK · 11단계 기기 승인</div>
       <h1>점령된 자료실</h1>
-      <p>
+      <p class="page-description">
         설치형 웹앱과 서버 기기 승인을 분리합니다.
         로그인만으로 보호 자료를 열지 않으며, 서버가 승인한 현재 기기에서만 자료실을 표시합니다.
       </p>
