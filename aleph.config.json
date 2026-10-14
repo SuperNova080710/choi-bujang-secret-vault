@@ -1,5 +1,5 @@
 {
-  "step": 10,
+  "step": 11,
   "repoUrl": "https://github.com/SuperNova080710/choi-bujang-secret-vault",
   "publicAppUrl": "https://choi-bujang-secret-vault-alpha.vercel.app",
   "sampleMarker": "SAMPLE_NOTE_1",
@@ -48,5 +48,5 @@
     }
   ],
   "originalApiUrl": "https://foynurtqnrgvsctcvbdr.supabase.co/rest/v1/virtual_notes",
-  "restoreRoute": "/api/resotre/:id"
+  "restoreRoute": "/api/restoreRoute/:id"
 }

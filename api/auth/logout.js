@@ -3,6 +3,9 @@ import {
     getAccessToken,
     isSameOriginRequest,
 } from '../../src/auth-cookie.mjs';
+import {
+    clearDeviceCookie,
+} from '../../src/device-approval.mjs';
 
 export default async function handler(request, response) {
     response.setHeader('Cache-Control', 'no-store');
@@ -47,6 +50,7 @@ export default async function handler(request, response) {
         // 외부 요청 실패 여부와 관계없이 로컬 쿠키는 제거합니다.
     } finally {
         clearAuthCookies(response);
+        clearDeviceCookie(response);
     }
 
     return response.status(200).json({

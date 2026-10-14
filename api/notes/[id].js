@@ -7,6 +7,9 @@ import {
 import {
     serverResourceId,
 } from '../../src/resource-id.mjs';
+import {
+    verifyApprovedDeviceRequest,
+} from '../../src/device-request.mjs';
 
 export default async function handler(request, response) {
     const { id } = request.query;
@@ -45,6 +48,28 @@ export default async function handler(request, response) {
         supabase = getSupabaseClient();
     } catch {
         return response.status(500).json({ error: 'SERVER_CONFIG_ERROR' });
+    }
+
+    const deviceAuthorization =
+        await verifyApprovedDeviceRequest({
+            request,
+            userId: authentication.userId,
+            supabase,
+        });
+
+    if (authentication.authSource === 'cookie') {
+        const deviceAuthorization =
+            await verifyApprovedDeviceRequest({
+                request,
+                userId: authentication.userId,
+                supabase,
+            });
+
+        if (!deviceAuthorization.ok) {
+            return response
+                .status(deviceAuthorization.status)
+                .json(deviceAuthorization.body);
+        }
     }
 
     if (request.method === 'GET') {

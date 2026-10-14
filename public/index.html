@@ -4,6 +4,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101a28">
+  <meta name="application-name" content="BYTE BACK 자료실">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/app-icon.svg" type="image/svg+xml">
   <title>BYTE BACK | 점령된 자료실</title>
   <style>
     :root {
@@ -57,6 +61,7 @@
       background: #612a3544;
     }
 
+    .app-card,
     .auth-card,
     .note-form-card {
       margin: 26px 0;
@@ -64,6 +69,22 @@
       border: 1px solid #51667c;
       border-radius: 14px;
       background: #162638;
+    }
+
+    .app-status {
+      margin: 8px 0;
+      color: #bfd0e5;
+      font-size: 15px;
+    }
+
+    .app-caution {
+      margin: 14px 0 0;
+      padding: 12px 14px;
+      border: 1px solid #7f6d43;
+      border-radius: 9px;
+      background: #42371f55;
+      color: #f4dfaa;
+      font-size: 14px;
     }
 
     .auth-status {
@@ -201,6 +222,39 @@
       로그인 기능은 현재 단계의 인증 실습을 위한 것입니다.
     </p>
 
+    <div class="app-card">
+      <h2>접속 앱</h2>
+
+      <p id="install-status" class="app-status">
+        실행 환경을 확인하는 중입니다.
+      </p>
+
+      <p id="network-status" class="app-status" role="status">
+        네트워크 상태를 확인하는 중입니다.
+      </p>
+
+      <p id="device-status" class="app-status" role="status">
+        기기 승인 상태: 서버 확인 전
+      </p>
+
+      <button id="device-approve-button" type="button" hidden>
+        이 기기 승인 요청
+      </button>
+
+      <p id="device-error" class="error" role="alert" hidden></p>
+
+      <p class="app-caution">
+        이 앱을 설치했거나 설치형 화면으로 실행 중이라는 사실만으로
+        기기가 승인된 것은 아닙니다. 보호 자료 접근 여부는 서버의
+        기기 확인 결과를 기준으로 결정합니다.
+      </p>
+
+      <p class="app-status">
+        오프라인 상태에서는 보호 자료를 새로 불러오거나
+        기기 승인 상태를 확인할 수 없습니다.
+      </p>
+    </div>
+
     <div class="auth-card">
       <h2>로그인</h2>
       <p id="auth-status" class="auth-status">로그인 상태를 확인하는 중입니다.</p>
@@ -269,6 +323,20 @@
     const authError = document.querySelector('#auth-error');
     const authSuccess = document.querySelector('#auth-success');
 
+    const installStatus = document.querySelector('#install-status');
+    const networkStatus = document.querySelector('#network-status');
+    const deviceStatus = document.querySelector('#device-status');
+
+    const deviceApproveButton =
+      document.querySelector(
+        '#device-approve-button',
+      );
+
+    const deviceError =
+      document.querySelector(
+        '#device-error',
+      );
+
     const noteFormCard = document.querySelector('#note-form-card');
     const noteFormTitle = document.querySelector('#note-form-title');
     const noteForm = document.querySelector('#note-form');
@@ -283,6 +351,120 @@
 
     let editingNoteId = null;
     let currentUser = null;
+
+    /*
+     * 기기 개인키는 이 페이지 실행 중 메모리에만 둡니다.
+     * localStorage, sessionStorage, IndexedDB에 저장하지 않습니다.
+     */
+    let currentDeviceKeyPair = null;
+    let currentDeviceApproved = false;
+
+    function updateInstallStatus() {
+      const standalone =
+        window.matchMedia('(display-mode: standalone)').matches
+        || window.navigator.standalone === true;
+
+      installStatus.textContent = standalone
+        ? '설치형 웹앱 화면으로 실행 중입니다.'
+        : '브라우저에서 실행 중입니다. 설치 가능 여부는 브라우저가 결정합니다.';
+    }
+
+    function updateNetworkStatus() {
+      networkStatus.textContent = navigator.onLine
+        ? '온라인 상태입니다.'
+        : '오프라인 상태입니다. 보호 자료와 기기 승인 상태는 네트워크 연결 후 확인할 수 있습니다.';
+    }
+
+    function showProtectedPlaceholder(
+      message,
+    ) {
+      list.replaceChildren(
+        Object.assign(
+          document.createElement('li'),
+          {
+            textContent: message,
+          },
+        ),
+      );
+    }
+
+    function updateProtectedUI() {
+      const available =
+        Boolean(currentUser)
+        && currentDeviceApproved
+        && currentDeviceKeyPair !== null;
+
+      noteFormCard.hidden =
+        !available;
+
+      if (!available) {
+        resetNoteForm();
+
+        if (!currentUser) {
+          showProtectedPlaceholder(
+            '로그인하면 가상 자료를 확인할 수 있습니다.',
+          );
+        } else {
+          showProtectedPlaceholder(
+            '승인된 기기를 서버가 확인하기 전에는 보호 자료를 표시하지 않습니다.',
+          );
+        }
+      }
+
+      return available;
+    }
+
+    function setDeviceStatus({
+      message,
+      approved = false,
+    }) {
+      currentDeviceApproved =
+        approved === true
+        && currentDeviceKeyPair !== null;
+
+      deviceStatus.textContent =
+        message;
+
+      deviceApproveButton.hidden =
+        !currentUser
+        || currentDeviceApproved;
+
+      updateProtectedUI();
+    }
+
+    function clearDeviceError() {
+      deviceError.hidden = true;
+      deviceError.textContent = '';
+    }
+
+    function showDeviceError(message) {
+      deviceError.textContent = message;
+      deviceError.hidden = false;
+    }
+
+    function resetDeviceAccess() {
+      currentDeviceKeyPair = null;
+      currentDeviceApproved = false;
+
+      setDeviceStatus({
+        message: currentUser
+          ? '기기 승인 상태: 서버 확인 필요'
+          : '기기 승인 상태: 로그인 후 서버 확인 필요',
+      });
+    }
+
+    updateInstallStatus();
+    updateNetworkStatus();
+
+    window.addEventListener(
+      'online',
+      updateNetworkStatus,
+    );
+
+    window.addEventListener(
+      'offline',
+      updateNetworkStatus,
+    );
 
     function showError(message) {
       authError.textContent = message;
@@ -344,20 +526,48 @@
     }
 
     function updateAuthUI(user) {
+      const previousUserId =
+        currentUser?.id ?? null;
+
       currentUser = user;
 
       if (user) {
-        authStatus.textContent = `로그인됨: ${user.email}`;
+        authStatus.textContent =
+          `로그인됨: ${user.email}`;
+
         loginForm.hidden = true;
         logoutButton.hidden = false;
-        noteFormCard.hidden = false;
-      } else {
-        authStatus.textContent = '로그인되지 않았습니다.';
-        loginForm.hidden = false;
-        logoutButton.hidden = true;
-        noteFormCard.hidden = true;
-        resetNoteForm();
+
+        /*
+         * 다른 사용자로 바뀐 경우 이전 사용자의
+         * 메모리 전용 기기 키를 폐기합니다.
+         */
+        if (
+          previousUserId
+          && previousUserId !== user.id
+        ) {
+          currentDeviceKeyPair = null;
+          currentDeviceApproved = false;
+        }
+
+        deviceApproveButton.hidden =
+          false;
+
+        updateProtectedUI();
+        return;
       }
+
+      authStatus.textContent =
+        '로그인되지 않았습니다.';
+
+      loginForm.hidden = false;
+      logoutButton.hidden = true;
+
+      currentDeviceKeyPair = null;
+      currentDeviceApproved = false;
+
+      resetNoteForm();
+      resetDeviceAccess();
     }
 
     async function parseResponse(response) {
@@ -388,6 +598,512 @@
       }
 
       throw new Error(data.error ?? '로그인 상태를 확인할 수 없습니다.');
+    }
+
+    function canonicalize(value) {
+      if (Array.isArray(value)) {
+        return value.map(canonicalize);
+      }
+
+      if (
+        value !== null
+        && typeof value === 'object'
+      ) {
+        return Object.fromEntries(
+          Object.keys(value)
+            .sort()
+            .map(key => [
+              key,
+              canonicalize(value[key]),
+            ]),
+        );
+      }
+
+      return value;
+    }
+
+    function canonicalJson(value) {
+      return JSON.stringify(
+        canonicalize(value),
+      );
+    }
+
+    function canonicalRequestBody(
+      body,
+    ) {
+      if (
+        body === undefined
+        || body === null
+      ) {
+        return '';
+      }
+
+      if (typeof body === 'string') {
+        if (body.length === 0) {
+          return '';
+        }
+
+        try {
+          return canonicalJson(
+            JSON.parse(body),
+          );
+        } catch {
+          return body;
+        }
+      }
+
+      return canonicalJson(body);
+    }
+
+    async function sha256Hex(text) {
+      const digest =
+        await crypto.subtle.digest(
+          'SHA-256',
+          new TextEncoder().encode(
+            text,
+          ),
+        );
+
+      return Array.from(
+        new Uint8Array(digest),
+        byte =>
+          byte
+            .toString(16)
+            .padStart(2, '0'),
+      ).join('');
+    }
+
+    function toBase64Url(buffer) {
+      let binary = '';
+
+      for (
+        const byte
+        of new Uint8Array(buffer)
+      ) {
+        binary +=
+          String.fromCharCode(byte);
+      }
+
+      return btoa(binary)
+        .replace(/\+/gu, '-')
+        .replace(/\//gu, '_')
+        .replace(/=+$/gu, '');
+    }
+
+    function deviceApprovalPayload(
+      challenge,
+    ) {
+      return [
+        'ALEPH_DEVICE_APPROVAL_V1',
+        challenge,
+      ].join('\n');
+    }
+
+    function deviceRequestPayload({
+      method,
+      target,
+      bodySha256,
+      timestamp,
+      nonce,
+    }) {
+      return [
+        'ALEPH_DEVICE_REQUEST_V1',
+        method.toUpperCase(),
+        target,
+        bodySha256,
+        timestamp,
+        nonce,
+      ].join('\n');
+    }
+
+    async function signWithDeviceKey(
+      payload,
+    ) {
+      if (!currentDeviceKeyPair) {
+        throw new Error(
+          '현재 실행 세션에 기기 키가 없습니다.',
+        );
+      }
+
+      const signature =
+        await crypto.subtle.sign(
+          {
+            name: 'ECDSA',
+            hash: 'SHA-256',
+          },
+          currentDeviceKeyPair.privateKey,
+          new TextEncoder().encode(
+            payload,
+          ),
+        );
+
+      return toBase64Url(signature);
+    }
+
+    async function checkDeviceStatus() {
+      if (!currentUser) {
+        resetDeviceAccess();
+        return false;
+      }
+
+      const response =
+        await fetch(
+          '/api/device/status',
+          {
+            method: 'GET',
+            credentials: 'same-origin',
+            cache: 'no-store',
+          },
+        );
+
+      const data =
+        await parseResponse(response);
+
+      if (response.status === 401) {
+        updateAuthUI(null);
+        return false;
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          data.error
+          ?? '기기 승인 상태를 확인할 수 없습니다.',
+        );
+      }
+
+      /*
+       * DB에 approved 기록이 있어도 현재 페이지 메모리에
+       * 해당 개인키가 없다면 보호 요청을 서명할 수 없습니다.
+       */
+      if (
+        data.approved === true
+        && currentDeviceKeyPair
+      ) {
+        setDeviceStatus({
+          message:
+            '기기 승인 상태: 서버 승인 확인됨',
+          approved: true,
+        });
+
+        return true;
+      }
+
+      if (data.approved === true) {
+        setDeviceStatus({
+          message:
+            '기기 승인 기록은 있지만 현재 실행 세션의 기기 키가 없습니다. 다시 승인 요청해 주세요.',
+        });
+
+        return false;
+      }
+
+      if (data.status === 'pending') {
+        setDeviceStatus({
+          message:
+            '기기 승인 상태: 승인 절차가 완료되지 않았습니다.',
+        });
+
+        return false;
+      }
+
+      if (data.status === 'revoked') {
+        setDeviceStatus({
+          message:
+            '기기 승인 상태: 회수된 기기입니다.',
+        });
+
+        return false;
+      }
+
+      setDeviceStatus({
+        message:
+          '기기 승인 상태: 미등록',
+      });
+
+      return false;
+    }
+
+    async function requestDeviceApproval() {
+      clearDeviceError();
+
+      deviceApproveButton.disabled =
+        true;
+
+      try {
+        if (!currentUser) {
+          throw new Error(
+            '먼저 로그인해 주세요.',
+          );
+        }
+
+        /*
+         * 새 P-256 키를 생성합니다.
+         * 개인키는 currentDeviceKeyPair 메모리에만 존재합니다.
+         */
+        const keyPair =
+          await crypto.subtle.generateKey(
+            {
+              name: 'ECDSA',
+              namedCurve: 'P-256',
+            },
+            true,
+            ['sign', 'verify'],
+          );
+
+        currentDeviceKeyPair =
+          keyPair;
+
+        currentDeviceApproved =
+          false;
+
+        const publicKey =
+          await crypto.subtle.exportKey(
+            'jwk',
+            keyPair.publicKey,
+          );
+
+        const requestResponse =
+          await fetch(
+            '/api/device/request',
+            {
+              method: 'POST',
+              credentials: 'same-origin',
+              cache: 'no-store',
+              headers: {
+                'Content-Type':
+                  'application/json',
+              },
+              body: JSON.stringify({
+                publicKey,
+              }),
+            },
+          );
+
+        const requestData =
+          await parseResponse(
+            requestResponse,
+          );
+
+        if (
+          !requestResponse.ok
+          || requestData.status
+          !== 'pending'
+          || typeof requestData.challenge
+          !== 'string'
+        ) {
+          throw new Error(
+            requestData.error
+            ?? '기기 승인 요청에 실패했습니다.',
+          );
+        }
+
+        /*
+         * 승인 버튼만으로 승인하지 않습니다.
+         * 서버 challenge에 대한 개인키 소유 증명을 생성합니다.
+         */
+        const challengeSignature =
+          await signWithDeviceKey(
+            deviceApprovalPayload(
+              requestData.challenge,
+            ),
+          );
+
+        const approveResponse =
+          await fetch(
+            '/api/device/approve',
+            {
+              method: 'POST',
+              credentials: 'same-origin',
+              cache: 'no-store',
+              headers: {
+                'Content-Type':
+                  'application/json',
+              },
+              body: JSON.stringify({
+                signature:
+                  challengeSignature,
+              }),
+            },
+          );
+
+        const approveData =
+          await parseResponse(
+            approveResponse,
+          );
+
+        if (
+          !approveResponse.ok
+          || approveData.approved
+          !== true
+        ) {
+          throw new Error(
+            approveData.error
+            ?? '기기 승인에 실패했습니다.',
+          );
+        }
+
+        /*
+         * approve 응답만 믿지 않고 별도 상태 API로
+         * 서버 등록 결과를 다시 확인합니다.
+         */
+        const approved =
+          await checkDeviceStatus();
+
+        if (!approved) {
+          throw new Error(
+            '서버에서 승인된 기기로 확인되지 않았습니다.',
+          );
+        }
+
+        await loadNotes();
+      } catch (error) {
+        currentDeviceApproved =
+          false;
+
+        updateProtectedUI();
+        showDeviceError(
+          error.message,
+        );
+      } finally {
+        deviceApproveButton.disabled =
+          false;
+      }
+    }
+
+    async function signedApiFetch(
+      url,
+      options = {},
+    ) {
+      if (
+        !currentDeviceApproved
+        || !currentDeviceKeyPair
+      ) {
+        throw new Error(
+          '승인된 기기에서만 보호 자료를 요청할 수 있습니다.',
+        );
+      }
+
+      const targetUrl =
+        new URL(
+          url,
+          window.location.origin,
+        );
+
+      if (
+        targetUrl.origin
+        !== window.location.origin
+      ) {
+        throw new Error(
+          '보호 요청은 같은 출처에만 보낼 수 있습니다.',
+        );
+      }
+
+      const method =
+        String(
+          options.method ?? 'GET',
+        ).toUpperCase();
+
+      const target =
+        `${targetUrl.pathname}${targetUrl.search}`;
+
+      const bodyText =
+        canonicalRequestBody(
+          options.body,
+        );
+
+      const bodySha256 =
+        await sha256Hex(
+          bodyText,
+        );
+
+      const timestamp =
+        new Date().toISOString();
+
+      const nonce =
+        crypto.randomUUID();
+
+      const payload =
+        deviceRequestPayload({
+          method,
+          target,
+          bodySha256,
+          timestamp,
+          nonce,
+        });
+
+      const signature =
+        await signWithDeviceKey(
+          payload,
+        );
+
+      const headers =
+        new Headers(
+          options.headers ?? {},
+        );
+
+      headers.set(
+        'X-Aleph-Device-Timestamp',
+        timestamp,
+      );
+
+      headers.set(
+        'X-Aleph-Device-Nonce',
+        nonce,
+      );
+
+      headers.set(
+        'X-Aleph-Device-Signature',
+        signature,
+      );
+
+      const requestOptions = {
+        ...options,
+        method,
+        headers,
+      };
+
+      if (
+        options.body !== undefined
+      ) {
+        /*
+         * 서명한 canonical body 그대로 전송하여
+         * 서버가 동일한 SHA-256을 계산할 수 있게 합니다.
+         */
+        requestOptions.body =
+          bodyText;
+      }
+
+      const response =
+        await apiFetch(
+          target,
+          requestOptions,
+        );
+
+      if (
+        response.status === 403
+        || response.status === 409
+      ) {
+        const data =
+          await response
+            .clone()
+            .json()
+            .catch(() => null);
+
+        if (
+          data?.error
+          === 'DEVICE_NOT_APPROVED'
+        ) {
+          currentDeviceApproved =
+            false;
+
+          setDeviceStatus({
+            message:
+              '기기 승인 상태: 서버에서 승인되지 않음',
+          });
+        }
+      }
+
+      return response;
     }
 
     async function apiFetch(url, options = {}, retry = true) {
@@ -431,17 +1147,22 @@
     }
 
     async function loadNotes() {
-      if (!currentUser) {
-        list.replaceChildren(
-          Object.assign(document.createElement('li'), {
-            textContent: '로그인하면 가상 자료를 확인할 수 있습니다.',
-          })
+      if (
+        !currentUser
+        || !currentDeviceApproved
+        || !currentDeviceKeyPair
+      ) {
+        showProtectedPlaceholder(
+          currentUser
+            ? '승인된 기기에서만 보호 자료를 확인할 수 있습니다.'
+            : '로그인하면 가상 자료를 확인할 수 있습니다.',
         );
+
         return;
       }
 
       try {
-        const response = await apiFetch('/api/notes');
+        const response = await signedApiFetch('/api/notes');
         const data = await parseResponse(response);
 
         if (response.status === 401) {
@@ -501,7 +1222,7 @@
     }
 
     async function createNote(title, body) {
-      const response = await apiFetch('/api/notes', {
+      const response = await signedApiFetch('/api/notes', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -519,13 +1240,15 @@
     }
 
     async function updateNote(id, title, body) {
-      const response = await apiFetch(`/api/notes/${encodeURIComponent(id)}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ title, body }),
-      });
+      const response = await signedApiFetch(
+        `/api/notes/${encodeURIComponent(id)}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ title, body }),
+        });
 
       const data = await parseResponse(response);
 
@@ -538,7 +1261,7 @@
 
     async function deleteNote(id) {
       try {
-        const response = await apiFetch(
+        const response = await signedApiFetch(
           `/api/notes/${encodeURIComponent(id)}`,
           { method: 'DELETE' },
         );
@@ -555,6 +1278,13 @@
         showNoteError(error.message);
       }
     }
+
+    deviceApproveButton.addEventListener(
+      'click',
+      async () => {
+        await requestDeviceApproval();
+      },
+    );
 
     loginForm.addEventListener('submit', async event => {
       event.preventDefault();
@@ -588,7 +1318,8 @@
         updateAuthUI(data.user);
         passwordInput.value = '';
         showSuccess('로그인되었습니다.');
-        await loadNotes();
+
+        await checkDeviceStatus();
       } catch (error) {
         showError(error.message);
       } finally {
@@ -660,7 +1391,12 @@
     });
 
     try {
-      await checkSession();
+      const loggedIn =
+        await checkSession();
+
+      if (loggedIn) {
+        await checkDeviceStatus();
+      }
     } catch (error) {
       updateAuthUI(null);
       showError(error.message);
