@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 // The student changes this check as each stage adds an attack to the same app.
 // Never return tokens, private keys, real names, or note bodies.
 export async function runAttackChecks(config) {
@@ -43,8 +45,26 @@ export async function runAttackChecks(config) {
     );
   }
 
-  const timeout = () => AbortSignal.timeout(10000);
-  const apiUrl = new URL('/api/notes', app);
+  const timeout = () =>
+    AbortSignal.timeout(10000);
+
+  const apiUrl =
+    new URL('/api/notes', app);
+
+  const evidenceFetch = (
+    attackId,
+    input,
+    init = {},
+  ) => fetch(
+    input,
+    {
+      ...init,
+      alephEvidence: {
+        caseId: attackId,
+        requestKey: randomUUID(),
+      },
+    },
+  );
 
   async function isJsonError(response) {
     if (response.status !== 401 && response.status !== 403) {
@@ -62,10 +82,15 @@ export async function runAttackChecks(config) {
   const results = [];
 
   // 비로그인 목록 조회
-  const anonymousResponse = await fetch(apiUrl, {
-    redirect: 'error',
-    signal: timeout(),
-  });
+  const anonymousResponse =
+    await evidenceFetch(
+      'anonymous_api_note_read',
+      apiUrl,
+      {
+        redirect: 'error',
+        signal: timeout(),
+      },
+    );
 
   const anonymousRejected = await isJsonError(anonymousResponse);
 
@@ -78,13 +103,19 @@ export async function runAttackChecks(config) {
   });
 
   // 잘못된 Bearer 토큰으로 목록 조회
-  const invalidTokenResponse = await fetch(apiUrl, {
-    headers: {
-      Authorization: 'Bearer invalid-stage4-token',
-    },
-    redirect: 'error',
-    signal: timeout(),
-  });
+  const invalidTokenResponse =
+    await evidenceFetch(
+      'invalid_token_api_note_read',
+      apiUrl,
+      {
+        headers: {
+          Authorization:
+            'Bearer invalid-stage4-token',
+        },
+        redirect: 'error',
+        signal: timeout(),
+      },
+    );
 
   const invalidTokenRejected = await isJsonError(invalidTokenResponse);
 
@@ -97,13 +128,18 @@ export async function runAttackChecks(config) {
   });
 
   // 존재하지 않는 ID를 이용한 비로그인 상세 조회
-  const noteId = crypto.randomUUID();
+  const noteId = randomUUID();
   const noteUrl = new URL(`/api/notes/${noteId}`, app);
 
-  const anonymousDetailResponse = await fetch(noteUrl, {
-    redirect: 'error',
-    signal: timeout(),
-  });
+  const anonymousDetailResponse =
+    await evidenceFetch(
+      'anonymous_api_note_detail',
+      noteUrl,
+      {
+        redirect: 'error',
+        signal: timeout(),
+      },
+    );
 
   const anonymousDetailRejected = await isJsonError(anonymousDetailResponse);
 
@@ -116,51 +152,35 @@ export async function runAttackChecks(config) {
   });
 
   // 비로그인 수정 요청
-  const anonymousUpdateResponse = await fetch(noteUrl, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      title: 'unauthorized test',
-      body: 'unauthorized test',
-    }),
-    redirect: 'error',
-    signal: timeout(),
-  });
-
-  const anonymousUpdateRejected = await isJsonError(anonymousUpdateResponse);
-
   results.push({
-    attackId: 'anonymous_api_note_update',
-    expected: '비로그인 요청으로 메모를 수정할 수 없어야 함',
-    observed: anonymousUpdateRejected
-      ? `비로그인 수정 요청이 인증 오류 JSON으로 거부됨 (HTTP ${anonymousUpdateResponse.status})`
-      : `비로그인 수정 요청이 예상대로 거부되지 않음 (HTTP ${anonymousUpdateResponse.status})`,
+    attackId:
+      'anonymous_api_note_update',
+    expected:
+      '비로그인 요청으로 메모를 수정할 수 없어야 함',
+    observed:
+      '미실행: 심판 제출 점검 환경에서는 쓰기 요청을 보내지 않음',
   });
 
   // 비로그인 삭제 요청
-  const anonymousDeleteResponse = await fetch(noteUrl, {
-    method: 'DELETE',
-    redirect: 'error',
-    signal: timeout(),
-  });
-
-  const anonymousDeleteRejected = await isJsonError(anonymousDeleteResponse);
-
   results.push({
-    attackId: 'anonymous_api_note_delete',
-    expected: '비로그인 요청으로 메모를 삭제할 수 없어야 함',
-    observed: anonymousDeleteRejected
-      ? `비로그인 삭제 요청이 인증 오류 JSON으로 거부됨 (HTTP ${anonymousDeleteResponse.status})`
-      : `비로그인 삭제 요청이 예상대로 거부되지 않음 (HTTP ${anonymousDeleteResponse.status})`,
+    attackId:
+      'anonymous_api_note_delete',
+    expected:
+      '비로그인 요청으로 메모를 삭제할 수 없어야 함',
+    observed:
+      '미실행: 심판 제출 점검 환경에서는 쓰기 요청을 보내지 않음',
   });
 
   // 공개 정적 자료에 메모가 남아 있는지 확인
-  const staticResponse = await fetch(new URL('/data.json', app), {
-    redirect: 'error',
-    signal: timeout(),
-  });
+  const staticResponse =
+    await evidenceFetch(
+      'anonymous_static_note_read',
+      new URL('/data.json', app),
+      {
+        redirect: 'error',
+        signal: timeout(),
+      },
+    );
 
   let staticEmpty = false;
 
@@ -182,42 +202,76 @@ export async function runAttackChecks(config) {
   });
 
   if (config.step >= 5) {
-    const pageResponse = await fetch(new URL('/', app), {
-      redirect: 'error',
-      signal: timeout(),
-    });
+    const keyPageResponse =
+      await evidenceFetch(
+        'public_html_no_supabase_key',
+        new URL('/', app),
+        {
+          redirect: 'error',
+          signal: timeout(),
+        },
+      );
 
-    if (!pageResponse.ok) {
-      await pageResponse.body?.cancel();
+    if (!keyPageResponse.ok) {
+      await keyPageResponse.body?.cancel();
+
       throw new Error(
-        `공개 페이지 확인 실패: HTTP ${pageResponse.status}`,
+        `공개 페이지 확인 실패: HTTP ${keyPageResponse.status}`,
       );
     }
 
-    const html = await pageResponse.text();
+    const keyHtml =
+      await keyPageResponse.text();
 
     const keyAssignmentPresent =
-      /\bSUPABASE_PUBLISHABLE_KEY\s*=\s*['"][^'"]+['"]/.test(html);
+      /\bSUPABASE_PUBLISHABLE_KEY\s*=\s*['"][^'"]+['"]/
+        .test(keyHtml);
 
-    const urlAssignmentPresent =
-      /\bSUPABASE_URL\s*=\s*['"][^'"]+['"]/.test(html);
+    results.push({
+      attackId:
+        'public_html_no_supabase_key',
+      expected:
+        '공개 HTML에 Supabase Publishable Key 할당이 없어야 함',
+      observed:
+        keyAssignmentPresent
+          ? `HTTP ${keyPageResponse.status} · 공개 키 할당 발견`
+          : `HTTP ${keyPageResponse.status}`,
+    });
 
-    if (keyAssignmentPresent || urlAssignmentPresent) {
+    const urlPageResponse =
+      await evidenceFetch(
+        'public_html_no_supabase_url',
+        new URL('/', app),
+        {
+          redirect: 'error',
+          signal: timeout(),
+        },
+      );
+
+    if (!urlPageResponse.ok) {
+      await urlPageResponse.body?.cancel();
+
       throw new Error(
-        '공개 HTML에서 Supabase 키 또는 URL 설정이 발견되었습니다.',
+        `공개 페이지 확인 실패: HTTP ${urlPageResponse.status}`,
       );
     }
 
-    results.push({
-      attackId: 'public_html_no_supabase_key',
-      expected: '공개 HTML에 Supabase Publishable Key 할당이 없어야 함',
-      observed: '공개 HTML에서 SUPABASE_PUBLISHABLE_KEY 할당을 찾지 못함',
-    });
+    const urlHtml =
+      await urlPageResponse.text();
+
+    const urlAssignmentPresent =
+      /\bSUPABASE_URL\s*=\s*['"][^'"]+['"]/
+        .test(urlHtml);
 
     results.push({
-      attackId: 'public_html_no_supabase_url',
-      expected: '공개 HTML에 Supabase 프로젝트 URL 설정이 없어야 함',
-      observed: '공개 HTML에서 SUPABASE_URL 할당을 찾지 못함',
+      attackId:
+        'public_html_no_supabase_url',
+      expected:
+        '공개 HTML에 Supabase 프로젝트 URL 설정이 없어야 함',
+      observed:
+        urlAssignmentPresent
+          ? `HTTP ${urlPageResponse.status} · 프로젝트 URL 할당 발견`
+          : `HTTP ${urlPageResponse.status}`,
     });
 
     // 원본 REST API와 학생 인증 발급자가 같은 프로젝트인지 검증
@@ -256,14 +310,20 @@ export async function runAttackChecks(config) {
     restUrl.searchParams.set('select', 'id');
     restUrl.searchParams.set('limit', '1');
 
-    const directResponse = await fetch(restUrl, {
-      headers: {
-        apikey: publicKey,
-        Authorization: `Bearer ${publicKey}`,
-      },
-      redirect: 'error',
-      signal: timeout(),
-    });
+    const directResponse =
+      await evidenceFetch(
+        'public_key_direct_rest_read',
+        restUrl,
+        {
+          headers: {
+            apikey: publicKey,
+            Authorization:
+              `Bearer ${publicKey}`,
+          },
+          redirect: 'error',
+          signal: timeout(),
+        },
+      );
 
     const directApiStatus = directResponse.status;
     await directResponse.body?.cancel();
@@ -283,7 +343,7 @@ export async function runAttackChecks(config) {
 
   const decisionFixture = {
     schema: 'aleph.decision.v1',
-    requestId: crypto.randomUUID(),
+    requestId: randomUUID(),
     classId: 'class_fixture',
     projectId: 'project_fixture',
     subjectId: 'learner_fixture',
@@ -317,7 +377,7 @@ export async function runAttackChecks(config) {
 
     const registeredRequest = {
       ...decisionFixture,
-      requestId: crypto.randomUUID(),
+      requestId: randomUUID(),
     };
 
     const registeredDecision = await decide(registeredRequest);
@@ -344,7 +404,7 @@ export async function runAttackChecks(config) {
 
     const unregisteredRequest = {
       ...registeredRequest,
-      requestId: crypto.randomUUID(),
+      requestId: randomUUID(),
       deviceRegistered: false,
     };
 
@@ -373,7 +433,7 @@ export async function runAttackChecks(config) {
 
     const suspiciousRequest = {
       ...decisionFixture,
-      requestId: crypto.randomUUID(),
+      requestId: randomUUID(),
       stepUp: {
         verified: false,
         authAgeSeconds: null,
@@ -413,7 +473,7 @@ export async function runAttackChecks(config) {
 
     const claimedReverifiedRequest = {
       ...suspiciousRequest,
-      requestId: crypto.randomUUID(),
+      requestId: randomUUID(),
       stepUp: { verified: true, authAgeSeconds: 60 },
     };
 
@@ -440,7 +500,7 @@ export async function runAttackChecks(config) {
 
     const ownNoteRequest = {
       ...decisionFixture,
-      requestId: crypto.randomUUID(),
+      requestId: randomUUID(),
     };
 
     const ownNoteDecision = await decide(ownNoteRequest);
@@ -460,7 +520,7 @@ export async function runAttackChecks(config) {
 
     const listRouteRequest = {
       ...decisionFixture,
-      requestId: crypto.randomUUID(),
+      requestId: randomUUID(),
       path: '/notes',
       route: 'GET /notes',
     };
@@ -483,7 +543,7 @@ export async function runAttackChecks(config) {
 
     const functionPathRequest = {
       ...decisionFixture,
-      requestId: crypto.randomUUID(),
+      requestId: randomUUID(),
       path: '/notes/export',
       route: 'GET /notes/:id',
     };
@@ -506,7 +566,7 @@ export async function runAttackChecks(config) {
 
     const studentAnnouncementRequest = {
       ...decisionFixture,
-      requestId: crypto.randomUUID(),
+      requestId: randomUUID(),
       service: 'announcements',
       method: 'PUT',
       path: '/announcements/demo',
