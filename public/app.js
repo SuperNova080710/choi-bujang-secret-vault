@@ -706,7 +706,7 @@ async function loadOperationsSummary() {
     try {
         const response =
             await apiFetch(
-                '/api/operations',
+                '/api/device/status?view=operations',
             );
 
         const data =
