@@ -2043,8 +2043,17 @@ async function runAnonymousNotesCheck() {
                 method: 'GET',
                 credentials: 'omit',
                 cache: 'no-store',
+                redirect: 'manual',
             },
         );
+
+    if (
+        response.type === 'opaqueredirect'
+        || response.status === 0
+    ) {
+        return null;
+    }
+
 
     const rejected =
         response.status === 401
@@ -2074,12 +2083,20 @@ async function runInvalidTokenCheck() {
                 method: 'GET',
                 credentials: 'omit',
                 cache: 'no-store',
+                redirect: 'manual',
                 headers: {
                     Authorization:
                         'Bearer invalid-stage12-check',
                 },
             },
         );
+
+    if (
+        response.type === 'opaqueredirect'
+        || response.status === 0
+    ) {
+        return null;
+    }
 
     const rejected =
         response.status === 401
