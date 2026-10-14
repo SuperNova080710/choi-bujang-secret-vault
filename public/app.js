@@ -1,6 +1,54 @@
 const workspace = document.querySelector('#workspace');
 const protectedPanel = document.querySelector('#protected-panel');
 
+const operationsPanel =
+    document.querySelector('#operations-panel');
+
+const operationsCheckedAt =
+    document.querySelector('#operations-checked-at');
+
+const operationsRuleCount =
+    document.querySelector('#operations-rule-count');
+
+const operationsRuleList =
+    document.querySelector('#operations-rule-list');
+
+const operationsDetectionStatus =
+    document.querySelector('#operations-detection-status');
+
+const operationsDetectionDetail =
+    document.querySelector('#operations-detection-detail');
+
+const operationsDeviceTotal =
+    document.querySelector('#operations-device-total');
+
+const operationsDeviceDetail =
+    document.querySelector('#operations-device-detail');
+
+const operationsBackupCount =
+    document.querySelector('#operations-backup-count');
+
+const operationsBackupDetail =
+    document.querySelector('#operations-backup-detail');
+
+const operationsError =
+    document.querySelector('#operations-error');
+
+const verificationRunButton =
+    document.querySelector(
+        '#verification-run-button',
+    );
+
+const verificationResults =
+    document.querySelector(
+        '#verification-results',
+    );
+
+const verificationError =
+    document.querySelector(
+        '#verification-error',
+    );
+
 const loginForm = document.querySelector('#login-form');
 const emailInput = document.querySelector('#email');
 const passwordInput = document.querySelector('#password');
@@ -30,6 +78,163 @@ const noteCancelButton = document.querySelector('#note-cancel-button');
 const noteError = document.querySelector('#note-error');
 const noteSuccess = document.querySelector('#note-success');
 const list = document.querySelector('#notes');
+
+const verificationChecks = [
+    {
+        id: 'stage1-public-root',
+        stage: '1',
+        kind: '정상',
+        request:
+            'GET / · 공개 배포 화면',
+        expected:
+            '200 허용',
+        runnable:
+            'public_root',
+    },
+    {
+        id: 'stage3-anonymous-notes',
+        stage: '3~5',
+        kind: '금지',
+        request:
+            'GET /api/notes · 무인증',
+        expected:
+            '401 또는 403으로 거부',
+        runnable:
+            'anonymous_notes',
+    },
+    {
+        id: 'stage4-invalid-token',
+        stage: '4~5',
+        kind: '금지',
+        request:
+            'GET /api/notes · 잘못된 Bearer',
+        expected:
+            '401 또는 403으로 거부',
+        runnable:
+            'invalid_token',
+    },
+    {
+        id: 'stage5-static-data',
+        stage: '2 / 5',
+        kind: '금지',
+        request:
+            'GET /data.json',
+        expected:
+            '공개 notes 배열이 비어 있음',
+        runnable:
+            'static_data',
+    },
+    {
+        id: 'stage6-approved-device',
+        stage: '6 / 11',
+        kind: '정상',
+        request:
+            'GET /api/notes · 승인 기기 서명',
+        expected:
+            '200 허용',
+        runnable:
+            'approved_notes',
+    },
+    {
+        id: 'stage6-unsigned-device',
+        stage: '6 / 11',
+        kind: '금지',
+        request:
+            'GET /api/notes · 서명 없음',
+        expected:
+            '403 거부',
+        runnable:
+            'unsigned_notes',
+    },
+    {
+        id: 'stage7-risk-step-up',
+        stage: '7',
+        kind: '금지',
+        request:
+            '복합 이상 접속 요청',
+        expected:
+            'step_up',
+        runnable:
+            null,
+    },
+    {
+        id: 'stage8-own-resource',
+        stage: '8',
+        kind: '정상',
+        request:
+            '본인 메모 단건 GET',
+        expected:
+            '허용',
+        runnable:
+            null,
+    },
+    {
+        id: 'stage8-other-resource',
+        stage: '8',
+        kind: '금지',
+        request:
+            '타인 메모 단건 GET',
+        expected:
+            '거부',
+        runnable:
+            null,
+    },
+    {
+        id: 'stage9-burst-detection',
+        stage: '9',
+        kind: '금지',
+        request:
+            '10분 안 121회 GET',
+        expected:
+            'propose_revocation',
+        runnable:
+            null,
+    },
+    {
+        id: 'stage10-restore',
+        stage: '10',
+        kind: '정상',
+        request:
+            'POST /api/restore/:id',
+        expected:
+            '검증된 지정 사본만 복원',
+        runnable:
+            null,
+    },
+    {
+        id: 'stage11-signed-request',
+        stage: '11',
+        kind: '정상',
+        request:
+            '서명된 보호 자료 GET',
+        expected:
+            '200 허용',
+        runnable:
+            'approved_notes',
+    },
+    {
+        id: 'stage11-unsigned-request',
+        stage: '11',
+        kind: '금지',
+        request:
+            '서명 없는 보호 자료 GET',
+        expected:
+            '403 거부',
+        runnable:
+            'unsigned_notes',
+    },
+];
+
+const verificationRecords =
+    new Map();
+
+function verificationRequestId() {
+    return crypto.randomUUID();
+}
+
+function verificationCheckedAt() {
+    return new Date().toISOString();
+}
 
 let editingNoteId = null;
 let currentUser = null;
@@ -231,6 +436,7 @@ function updateAuthUI(user) {
         Boolean(user),
     );
 
+    operationsPanel.hidden = !user;
     protectedPanel.hidden = !user;
 
     if (user) {
@@ -268,8 +474,305 @@ function updateAuthUI(user) {
     currentDeviceKeyPair = null;
     currentDeviceApproved = false;
 
+    resetOperationsUI();
+
     resetNoteForm();
     resetDeviceAccess();
+}
+
+function resetOperationsUI() {
+    operationsCheckedAt.textContent =
+        '서버 결과 확인 전';
+
+    operationsRuleCount.textContent =
+        '확인 전';
+
+    operationsRuleList.textContent =
+        '서버 응답을 기다리고 있습니다.';
+
+    operationsDetectionStatus.textContent =
+        '확인 전';
+
+    operationsDetectionDetail.textContent =
+        '실행 여부를 확인하고 있습니다.';
+
+    operationsDeviceTotal.textContent =
+        '확인 전';
+
+    operationsDeviceDetail.textContent =
+        '서버 기록을 확인하고 있습니다.';
+
+    operationsBackupCount.textContent =
+        '확인 전';
+
+    operationsBackupDetail.textContent =
+        '서버 기록을 확인하고 있습니다.';
+
+    operationsError.hidden = true;
+    operationsError.textContent = '';
+}
+
+function showOperationsError(message) {
+    operationsError.textContent =
+        message;
+
+    operationsError.hidden =
+        false;
+}
+
+function formatCheckedAt(value) {
+    const date =
+        new Date(value);
+
+    if (
+        typeof value !== 'string'
+        || !Number.isFinite(
+            date.getTime(),
+        )
+    ) {
+        return '확인 시각 없음';
+    }
+
+    return date.toLocaleString(
+        'ko-KR',
+        {
+            dateStyle: 'short',
+            timeStyle: 'medium',
+        },
+    );
+}
+
+function renderOperationsSummary(data) {
+    operationsCheckedAt.textContent =
+        `확인 시각: ${formatCheckedAt(
+            data.checkedAt,
+        )}`;
+
+    const ruleIds =
+        Array.isArray(
+            data.decider?.ruleIds,
+        )
+            ? data.decider.ruleIds
+            : [];
+
+    const ruleCount =
+        Number.isInteger(
+            data.decider?.ruleCount,
+        )
+            ? data.decider.ruleCount
+            : ruleIds.length;
+
+    operationsRuleCount.textContent =
+        `${ruleCount}개 규칙`;
+
+    operationsRuleList.textContent =
+        ruleIds.length > 0
+            ? ruleIds.join(' · ')
+            : '확인된 규칙 없음';
+
+    /*
+     * 현재 실제 운영 탐지 사건 저장소가 없으므로
+     * 절대 "0건"이나 "통과"로 바꾸지 않습니다.
+     */
+    if (
+        data.detection?.status
+        === 'not_recorded'
+    ) {
+        operationsDetectionStatus.textContent =
+            '미기록';
+
+        operationsDetectionDetail.textContent =
+            data.detection
+                ?.revocationIntegration
+                === 'proposal_only'
+                ? '실제 사건 저장소 없음 · 회수 연동은 제안만 수행'
+                : '실제 탐지 사건 저장소가 없습니다.';
+    } else {
+        operationsDetectionStatus.textContent =
+            '서버 응답 확인';
+
+        const incidentCount =
+            Number.isInteger(
+                data.detection
+                    ?.observedIncidentCount,
+            )
+                ? data.detection
+                    .observedIncidentCount
+                : null;
+
+        operationsDetectionDetail.textContent =
+            incidentCount === null
+                ? '실제 사건 수를 확인할 수 없습니다.'
+                : `실제 기록 ${incidentCount}건`;
+    }
+
+    const devices =
+        data.revocation?.devices;
+
+    if (
+        data.revocation?.status
+        === 'measured'
+        && devices
+    ) {
+        const total =
+            Number.isInteger(
+                devices.total,
+            )
+                ? devices.total
+                : 0;
+
+        const approved =
+            Number.isInteger(
+                devices.approved,
+            )
+                ? devices.approved
+                : 0;
+
+        const pending =
+            Number.isInteger(
+                devices.pending,
+            )
+                ? devices.pending
+                : 0;
+
+        const revoked =
+            Number.isInteger(
+                devices.revoked,
+            )
+                ? devices.revoked
+                : 0;
+
+        operationsDeviceTotal.textContent =
+            `${total}개 기기 기록`;
+
+        operationsDeviceDetail.textContent =
+            [
+                `승인 ${approved}`,
+                `대기 ${pending}`,
+                `회수 ${revoked}`,
+            ].join(' · ');
+    } else {
+        operationsDeviceTotal.textContent =
+            '미확인';
+
+        operationsDeviceDetail.textContent =
+            '실제 기기 상태를 확인하지 못했습니다.';
+    }
+
+    const backupCount =
+        Number.isInteger(
+            data.recovery?.backupCount,
+        )
+            ? data.recovery.backupCount
+            : null;
+
+    const versions =
+        Array.isArray(
+            data.recovery?.versions,
+        )
+            ? data.recovery.versions
+            : [];
+
+    operationsBackupCount.textContent =
+        backupCount === null
+            ? '미확인'
+            : `${backupCount}개 사본`;
+
+    operationsBackupDetail.textContent =
+        versions.length > 0
+            ? versions
+                .map(item => {
+                    const version =
+                        typeof item?.version
+                            === 'string'
+                            ? item.version
+                            : 'unknown';
+
+                    const count =
+                        Number.isInteger(
+                            item?.count,
+                        )
+                            ? item.count
+                            : 0;
+
+                    return `${version} × ${count}`;
+                })
+                .join(' · ')
+            : '확인된 백업 버전 없음';
+}
+
+async function loadOperationsSummary() {
+    if (!currentUser) {
+        operationsPanel.hidden = true;
+
+        resetOperationsUI();
+
+        return false;
+    }
+
+    operationsPanel.hidden = false;
+
+    resetOperationsUI();
+
+    try {
+        const response =
+            await apiFetch(
+                '/api/device/status?view=operations',
+            );
+
+        const data =
+            await parseResponse(
+                response,
+            );
+
+        if (response.status === 401) {
+            updateAuthUI(null);
+
+            throw new Error(
+                '로그인이 필요합니다.',
+            );
+        }
+
+        if (!response.ok) {
+            throw new Error(
+                data.error
+                ?? '작전실 서버 결과를 확인할 수 없습니다.',
+            );
+        }
+
+        if (
+            data.schema
+            !== 'aleph.operations.summary.v1'
+        ) {
+            throw new Error(
+                '작전실 응답 형식이 올바르지 않습니다.',
+            );
+        }
+
+        renderOperationsSummary(
+            data,
+        );
+
+        return true;
+    } catch (error) {
+        operationsRuleCount.textContent =
+            '확인 실패';
+
+        operationsDetectionStatus.textContent =
+            '확인 실패';
+
+        operationsDeviceTotal.textContent =
+            '확인 실패';
+
+        operationsBackupCount.textContent =
+            '확인 실패';
+
+        showOperationsError(
+            error.message,
+        );
+
+        return false;
+    }
 }
 
 async function parseResponse(response) {
@@ -1243,6 +1746,7 @@ loginForm.addEventListener(
                 '로그인되었습니다.',
             );
 
+            await loadOperationsSummary();
             await checkDeviceStatus();
         } catch (error) {
             showError(
@@ -1381,6 +1885,7 @@ try {
         await checkSession();
 
     if (loggedIn) {
+        await loadOperationsSummary();
         await checkDeviceStatus();
     }
 } catch (error) {
@@ -1392,3 +1897,476 @@ try {
 }
 
 await loadNotes();
+
+function formatVerificationTime(value) {
+    if (!value) {
+        return '미실행';
+    }
+
+    const date =
+        new Date(value);
+
+    if (
+        !Number.isFinite(
+            date.getTime(),
+        )
+    ) {
+        return '확인 불가';
+    }
+
+    return date.toLocaleString(
+        'ko-KR',
+        {
+            dateStyle: 'short',
+            timeStyle: 'medium',
+        },
+    );
+}
+
+function renderVerificationTable() {
+    const rows =
+        verificationChecks.map(
+            check => {
+                const record =
+                    verificationRecords.get(
+                        check.id,
+                    );
+
+                const row =
+                    document.createElement(
+                        'tr',
+                    );
+
+                const stage =
+                    document.createElement(
+                        'td',
+                    );
+
+                stage.textContent =
+                    check.stage;
+
+                const kind =
+                    document.createElement(
+                        'td',
+                    );
+
+                kind.textContent =
+                    check.kind;
+
+                const request =
+                    document.createElement(
+                        'td',
+                    );
+
+                request.textContent =
+                    check.request;
+
+                const expected =
+                    document.createElement(
+                        'td',
+                    );
+
+                expected.textContent =
+                    check.expected;
+
+                const actual =
+                    document.createElement(
+                        'td',
+                    );
+
+                const status =
+                    document.createElement(
+                        'span',
+                    );
+
+                status.className =
+                    'verification-status';
+
+                if (!record) {
+                    status.classList.add(
+                        'is-not-run',
+                    );
+
+                    status.textContent =
+                        '미실행';
+                } else {
+                    status.classList.add(
+                        record.ok
+                            ? 'is-ok'
+                            : 'is-denied',
+                    );
+
+                    status.textContent =
+                        record.actual;
+                }
+
+                actual.append(status);
+
+                const requestId =
+                    document.createElement(
+                        'td',
+                    );
+
+                requestId.textContent =
+                    record?.requestId
+                    ?? '미실행';
+
+                const checkedAt =
+                    document.createElement(
+                        'td',
+                    );
+
+                checkedAt.textContent =
+                    formatVerificationTime(
+                        record?.checkedAt,
+                    );
+
+                row.append(
+                    stage,
+                    kind,
+                    request,
+                    expected,
+                    actual,
+                    requestId,
+                    checkedAt,
+                );
+
+                return row;
+            },
+        );
+
+    verificationResults.replaceChildren(
+        ...rows,
+    );
+}
+
+async function runPublicRootCheck() {
+    const requestId =
+        verificationRequestId();
+
+    const checkedAt =
+        verificationCheckedAt();
+
+    const response =
+        await fetch(
+            '/',
+            {
+                method: 'GET',
+                credentials: 'same-origin',
+                cache: 'no-store',
+            },
+        );
+
+    const allowed =
+        response.status === 200;
+
+    await response.body?.cancel();
+
+    return {
+        requestId,
+        checkedAt,
+        ok: allowed,
+        actual: allowed
+            ? 'HTTP 200 · 공개 배포 화면 응답 확인'
+            : `HTTP ${response.status} · 기대한 배포 응답이 아님`,
+    };
+}
+
+async function runAnonymousNotesCheck() {
+    const requestId =
+        verificationRequestId();
+
+    const checkedAt =
+        verificationCheckedAt();
+
+    const response =
+        await fetch(
+            '/api/notes',
+            {
+                method: 'GET',
+                credentials: 'omit',
+                cache: 'no-store',
+                redirect: 'manual',
+            },
+        );
+
+    if (
+        response.type === 'opaqueredirect'
+        || response.status === 0
+    ) {
+        return null;
+    }
+
+
+    const rejected =
+        response.status === 401
+        || response.status === 403;
+
+    return {
+        requestId,
+        checkedAt,
+        ok: rejected,
+        actual: rejected
+            ? `HTTP ${response.status} · 무인증 요청 거부 확인`
+            : `HTTP ${response.status} · 기대한 인증 거부가 아님`,
+    };
+}
+
+async function runInvalidTokenCheck() {
+    const requestId =
+        verificationRequestId();
+
+    const checkedAt =
+        verificationCheckedAt();
+
+    const response =
+        await fetch(
+            '/api/notes',
+            {
+                method: 'GET',
+                credentials: 'omit',
+                cache: 'no-store',
+                redirect: 'manual',
+                headers: {
+                    Authorization:
+                        'Bearer invalid-stage12-check',
+                },
+            },
+        );
+
+    if (
+        response.type === 'opaqueredirect'
+        || response.status === 0
+    ) {
+        return null;
+    }
+
+    const rejected =
+        response.status === 401
+        || response.status === 403;
+
+    return {
+        requestId,
+        checkedAt,
+        ok: rejected,
+        actual: rejected
+            ? `HTTP ${response.status} · 잘못된 토큰 거부 확인`
+            : `HTTP ${response.status} · 기대한 인증 거부가 아님`,
+    };
+}
+
+async function runStaticDataCheck() {
+    const requestId =
+        verificationRequestId();
+
+    const checkedAt =
+        verificationCheckedAt();
+
+    const response =
+        await fetch(
+            '/data.json',
+            {
+                method: 'GET',
+                cache: 'no-store',
+            },
+        );
+
+    let empty = false;
+
+    if (response.ok) {
+        try {
+            const data =
+                await response.json();
+
+            empty =
+                Array.isArray(data.notes)
+                && data.notes.length === 0;
+        } catch {
+            empty = false;
+        }
+    }
+
+    const matched =
+        response.ok
+        && empty;
+
+    return {
+        requestId,
+        checkedAt,
+        ok: matched,
+        actual: matched
+            ? 'HTTP 200 · 공개 notes 배열 비어 있음'
+            : `HTTP ${response.status} · 공개 자료 상태가 기대와 다름`,
+    };
+}
+
+async function runApprovedNotesCheck() {
+    /*
+     * 현재 실행 세션에 서버 승인 기기와
+     * 대응하는 메모리 전용 개인키가 있을 때만 실행합니다.
+     *
+     * 조건이 없으면 실패로 기록하지 않고
+     * 그대로 "미실행" 상태를 유지합니다.
+     */
+    if (
+        !currentUser
+        || !currentDeviceApproved
+        || !currentDeviceKeyPair
+    ) {
+        return null;
+    }
+
+    const requestId =
+        verificationRequestId();
+
+    const checkedAt =
+        verificationCheckedAt();
+
+    const response =
+        await signedApiFetch(
+            '/api/notes',
+        );
+
+    const allowed =
+        response.status === 200;
+
+    return {
+        requestId,
+        checkedAt,
+        ok: allowed,
+        actual: allowed
+            ? 'HTTP 200 · 승인 기기 서명 요청 허용 확인'
+            : `HTTP ${response.status} · 기대한 정상 허용이 아님`,
+    };
+}
+
+async function runUnsignedNotesCheck() {
+    /*
+     * 로그인 cookie와 기기 cookie는 그대로 사용하지만
+     * X-Aleph-Device-* 서명 헤더를 붙이지 않습니다.
+     */
+    if (!currentUser) {
+        return null;
+    }
+
+    const requestId =
+        verificationRequestId();
+
+    const checkedAt =
+        verificationCheckedAt();
+
+    const response =
+        await fetch(
+            '/api/notes',
+            {
+                method: 'GET',
+                credentials: 'same-origin',
+                cache: 'no-store',
+            },
+        );
+
+    const rejected =
+        response.status === 403;
+
+    return {
+        requestId,
+        checkedAt,
+        ok: rejected,
+        actual: rejected
+            ? 'HTTP 403 · 서명 없는 보호 요청 거부 확인'
+            : `HTTP ${response.status} · 기대한 기기 서명 거부가 아님`,
+    };
+}
+
+async function runVerificationChecks() {
+    verificationError.hidden =
+        true;
+
+    verificationError.textContent =
+        '';
+
+    verificationRunButton.disabled =
+        true;
+
+    try {
+        for (
+            const check
+            of verificationChecks
+        ) {
+            let record = null;
+
+            if (
+                check.runnable
+                === 'public_root'
+            ) {
+                record =
+                    await runPublicRootCheck();
+            } else if (
+                check.runnable
+                === 'anonymous_notes'
+            ) {
+                record =
+                    await runAnonymousNotesCheck();
+            } else if (
+                check.runnable
+                === 'invalid_token'
+            ) {
+                record =
+                    await runInvalidTokenCheck();
+            } else if (
+                check.runnable
+                === 'static_data'
+            ) {
+                record =
+                    await runStaticDataCheck();
+            } else if (
+                check.runnable
+                === 'approved_notes'
+            ) {
+                record =
+                    await runApprovedNotesCheck();
+            } else if (
+                check.runnable
+                === 'unsigned_notes'
+            ) {
+                record =
+                    await runUnsignedNotesCheck();
+            }
+
+            /*
+             * runnable이 null이거나 현재 실행 조건이
+             * 충족되지 않은 시험은 결과를 생성하지 않습니다.
+             *
+             * 따라서 기존 "미실행" 상태가 유지됩니다.
+             */
+            if (record) {
+                verificationRecords.set(
+                    check.id,
+                    record,
+                );
+            }
+        }
+
+        renderVerificationTable();
+    } catch (error) {
+        verificationError.textContent =
+            error instanceof Error
+                ? error.message
+                : '실측 요청 실행 중 오류가 발생했습니다.';
+
+        verificationError.hidden =
+            false;
+    } finally {
+        verificationRunButton.disabled =
+            false;
+    }
+}
+
+verificationRunButton.addEventListener(
+    'click',
+    async () => {
+        await runVerificationChecks();
+    },
+);
+
+renderVerificationTable();

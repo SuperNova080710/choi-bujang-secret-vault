@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#101a28">
   <meta name="application-name" content="BYTE BACK 자료실">
-  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="manifest" href="/manifest.webmanifest" crossorigin="use-credentials">
   <link rel="icon" href="/app-icon.svg" type="image/svg+xml">
   <title>BYTE BACK | 점령된 자료실</title>
 
@@ -324,6 +324,215 @@
       background: #63313c;
     }
 
+    .operations-panel {
+      margin: 0 0 18px;
+      padding: 18px;
+      border: 1px solid #51667c;
+      border-radius: 14px;
+      background: #162638;
+    }
+
+    .operations-heading {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+
+    .panel-kicker {
+      margin: 0 0 5px;
+      color: #8ad8df;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .06em;
+    }
+
+    .operations-heading h2 {
+      margin: 0;
+    }
+
+    .operations-checked-at {
+      margin: 2px 0 0;
+      color: #91a8c0;
+      font-size: 12px;
+      text-align: right;
+    }
+
+    .operations-grid {
+      display: grid;
+      grid-template-columns:
+        repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .operations-card {
+      min-width: 0;
+      padding: 14px;
+      border: 1px solid #40566d;
+      border-radius: 11px;
+      background: #0f1b2a;
+    }
+
+    .operations-label {
+      display: block;
+      margin-bottom: 8px;
+      color: #91a8c0;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .operations-card strong {
+      margin: 0 0 6px;
+      font-size: 18px;
+    }
+
+    .operations-card p {
+      margin: 0;
+      color: #bfd0e5;
+      font-size: 13px;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+    }
+
+    .operations-note {
+      margin: 12px 0 0;
+      padding: 10px 12px;
+      border: 1px solid #7f6d43;
+      border-radius: 9px;
+      background: #42371f55;
+      color: #f4dfaa;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    @media (max-width: 1100px) {
+      .operations-grid {
+        grid-template-columns:
+          repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 620px) {
+      .operations-heading {
+        display: block;
+      }
+
+      .operations-checked-at {
+        margin-top: 8px;
+        text-align: left;
+      }
+
+      .operations-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .verification-section {
+      margin-top: 18px;
+      padding-top: 18px;
+      border-top: 1px solid #40566d;
+    }
+
+    .verification-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 8px;
+    }
+
+    .verification-heading h3 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .verification-description {
+      margin: 0 0 12px;
+      color: #91a8c0;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .verification-table-wrap {
+      overflow-x: auto;
+      border: 1px solid #40566d;
+      border-radius: 10px;
+    }
+
+    .verification-table {
+      width: 100%;
+      min-width: 980px;
+      border-collapse: collapse;
+      background: #0f1b2a;
+    }
+
+    .verification-table th,
+    .verification-table td {
+      padding: 10px 11px;
+      border-bottom: 1px solid #31465c;
+      text-align: left;
+      vertical-align: top;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .verification-table th {
+      color: #91a8c0;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .verification-table td {
+      color: #bfd0e5;
+    }
+
+    .verification-table tbody tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .verification-status {
+      font-weight: 700;
+    }
+
+    .verification-status.is-ok {
+      color: #9ee5c2;
+    }
+
+    .verification-status.is-denied {
+      color: #f4dfaa;
+    }
+
+    .verification-status.is-not-run {
+      color: #91a8c0;
+    }
+
+    @media (max-width: 620px) {
+      .verification-heading {
+        display: block;
+      }
+
+      .verification-heading button {
+        margin-top: 10px;
+        width: 100%;
+      }
+    }
+
+    .workspace.is-authenticated .left-panel {
+      grid-column: 1;
+      grid-row: 1;
+    }
+
+    .workspace.is-authenticated .protected-panel {
+      grid-column: 2;
+      grid-row: 1;
+    }
+
+    .workspace.is-authenticated .operations-panel {
+      grid-column: 1 / -1;
+      grid-row: 2;
+    }
+
     @media (max-width: 1100px) and (min-width: 821px) {
       main {
         width: min(100% - 28px, 1100px);
@@ -348,6 +557,13 @@
       .workspace.is-authenticated .left-panel {
         grid-template-columns: 1fr;
       }
+
+      .workspace.is-authenticated .left-panel,
+      .workspace.is-authenticated .protected-panel,
+      .workspace.is-authenticated .operations-panel {
+        grid-column: 1;
+        grid-row: auto;
+      }
     }
   </style>
 </head>
@@ -355,11 +571,11 @@
 <body>
   <main>
     <header class="page-header">
-      <div class="eyebrow">BYTE BACK · 11단계 기기 승인</div>
+      <div class="eyebrow">BYTE BACK · 12단계 탈환 작전실</div>
       <h1>점령된 자료실</h1>
       <p class="page-description">
-        설치형 웹앱과 서버 기기 승인을 분리합니다.
-        로그인만으로 보호 자료를 열지 않으며, 서버가 승인한 현재 기기에서만 자료실을 표시합니다.
+        판정·탐지·회수·복구의 실제 서버 결과와 실측 요청 기록을 확인합니다.
+        실행하지 않은 시험은 통과로 간주하지 않습니다.
       </p>
     </header>
 
@@ -439,6 +655,105 @@
           <p id="auth-error" class="error" role="alert" hidden></p>
           <p id="auth-success" class="success" role="status" hidden></p>
         </div>
+      </section>
+
+      <section id="operations-panel" class="operations-panel" aria-labelledby="operations-title" hidden>
+        <div class="operations-heading">
+          <div>
+            <p class="panel-kicker">12단계 · 실제 서버 요약</p>
+            <h2 id="operations-title">탈환 작전실</h2>
+          </div>
+
+          <p id="operations-checked-at" class="operations-checked-at">
+            서버 결과 확인 전
+          </p>
+        </div>
+
+        <div class="operations-grid">
+          <article class="operations-card">
+            <span class="operations-label">판정기 규칙</span>
+            <strong id="operations-rule-count">확인 전</strong>
+            <p id="operations-rule-list">
+              서버 응답을 기다리고 있습니다.
+            </p>
+          </article>
+
+          <article class="operations-card">
+            <span class="operations-label">탐지 사건</span>
+            <strong id="operations-detection-status">확인 전</strong>
+            <p id="operations-detection-detail">
+              실행 여부를 확인하고 있습니다.
+            </p>
+          </article>
+
+          <article class="operations-card">
+            <span class="operations-label">기기 회수 상태</span>
+            <strong id="operations-device-total">확인 전</strong>
+            <p id="operations-device-detail">
+              서버 기록을 확인하고 있습니다.
+            </p>
+          </article>
+
+          <article class="operations-card">
+            <span class="operations-label">복구 사본</span>
+            <strong id="operations-backup-count">확인 전</strong>
+            <p id="operations-backup-detail">
+              서버 기록을 확인하고 있습니다.
+            </p>
+          </article>
+        </div>
+
+        <p class="operations-note">
+          이 화면은 API에서 실제로 확인한 서버 결과만 표시합니다.
+          실행하지 않았거나 기록 저장소가 없는 결과는 통과로 계산하지 않습니다.
+          가상 메모 본문은 작전실에 표시하지 않습니다.
+        </p>
+
+        <div class="verification-section">
+          <div class="verification-heading">
+            <div>
+              <p class="panel-kicker">
+                1~11단계 · 실측 기록
+              </p>
+              <h3>정상·금지 요청 확인표</h3>
+            </div>
+
+            <button id="verification-run-button" type="button">
+              안전한 요청 다시 확인
+            </button>
+          </div>
+
+          <p class="verification-description">
+            실제로 실행한 요청만 결과를 기록합니다.
+            실행하지 않은 시험은 미실행으로 남기며
+            41종 총공세를 임의로 통과 처리하지 않습니다.
+            점검 요청 ID는 이 화면이 각 실측 실행을 구분하기 위해 생성하며,
+            서버 또는 ALEPH SDP 엔진의 요청 ID를 의미하지 않습니다.
+          </p>
+
+          <div class="verification-table-wrap">
+            <table class="verification-table">
+              <thead>
+                <tr>
+                  <th>단계</th>
+                  <th>구분</th>
+                  <th>요청</th>
+                  <th>기대 결과</th>
+                  <th>실제 결과</th>
+                  <th>점검 요청 ID</th>
+                  <th>확인 시각</th>
+                </tr>
+              </thead>
+
+              <tbody id="verification-results">
+              </tbody>
+            </table>
+          </div>
+
+          <p id="verification-error" class="error" role="alert" hidden></p>
+        </div>
+
+        <p id="operations-error" class="error" role="alert" hidden></p>
       </section>
 
       <section id="protected-panel" class="protected-panel" aria-label="보호 자료" hidden>
