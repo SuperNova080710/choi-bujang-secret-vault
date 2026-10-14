@@ -1649,17 +1649,503 @@ npm run build -- --local                통과
 git diff --check                        통과
 ```
 
-아직 완료로 주장하지 않는 항목:
+### 11단계 최종 완료 상태
+
+11단계는 저장점 작성, 원격 push, PR 병합, Vercel 배포 및 심판 제출까지 완료했습니다.
+
+최종 심판 판정:
 
 ```text
-11단계 저장점 커밋
-11단계 npm run bundle
-stage11 원격 push
-PR 생성 및 main 병합
-Vercel 11단계 배포
-11단계 심판 제출
-11단계 심판 판정
+11단계 심판 점수: 100점
 ```
+
+11단계 심판 재확인 과정에서 `public/index.html`에 포함되어 있던 JavaScript를
+`public/app.js`로 분리하여 정적 HTML과 실행 스크립트의 경계를 명확하게 했습니다.
+
+최종 11단계가 `main`에 병합된 기준 커밋:
+
+```
+6e863aa Merge pull request #50 from SuperNova080710/stage11-fix-judge
+```
+
+주요 보완 커밋:
+
+```
+fd9ebc8 index.html에서 app.js분리
+```
+
+로컬 검증, 실제 Vercel 배포, 심판 판정은 서로 다른 검증 단계이며,
+위 100점은 로컬 자체 시험 결과가 아니라 실제 11단계 심판 판정 결과입니다.
 
 로컬 검증, 데이터베이스 설정 검증, 실제 배포, 심판 판정은 서로 다른 검증 단계로 취급합니다.
 
+## 12단계 — 탈환 작전실을 완성합니다
+
+### 목표
+
+1~11단계에서 구현한 인증, 소유권, 기기 등록, 판정, 탐지, 복구 기능을
+한 화면에서 확인할 수 있는 탈환 작전실을 제공합니다.
+
+12단계에서는 과거 단계의 시험 결과를 임의로 성공 처리하지 않습니다.
+
+실제로 현재 배포 API를 호출하여 확인한 요청만 실제 결과로 기록하고,
+실행하지 않았거나 배포 환경 때문에 애플리케이션까지 도달하지 못한 요청은
+`미실행`으로 남깁니다.
+
+41종 총공세 역시 실제 ALEPH 심판이 수행하기 전에는
+`41/41 통과`라고 표시하지 않습니다.
+
+### 탈환 작전실
+
+로그인한 사용자는 기존 자료실과 별도로 탈환 작전실을 확인할 수 있습니다.
+
+작전실에서는 다음 항목을 표시합니다.
+
+```text
+판정기 규칙
+탐지 사건 기록 상태
+기기 승인·대기·회수 상태
+복구 사본 버전
+1~11단계 정상·금지 요청 확인표
+```
+
+작전실 조회에는 기존 Vercel Function을 재사용합니다.
+
+```
+GET /api/device/status?view=operations
+```
+
+별도의 `/api/operations` Function을 만들지 않은 이유는
+Vercel Hobby 배포의 Serverless Function 개수 제한을 넘기지 않기 위해서입니다.
+
+기존 11단계 기기 상태 API:
+
+```
+GET /api/device/status
+```
+
+의 계약은 유지합니다.
+
+### 작전실 서버 응답
+
+작전실 응답 스키마:
+
+```
+aleph.operations.summary.v1
+```
+
+서버에서 직접 확인하는 항목:
+
+```
+src/decider.mjs의 RULE_IDS
+현재 사용자의 vault_devices 상태 집계
+현재 사용자의 virtual_note_backups 버전 집계
+현재 서버 확인 시각
+```
+
+작전실에서는 가상 메모 본문을 읽지 않습니다.
+
+다음 값도 작전실 응답에 포함하지 않습니다.
+
+```
+메모 제목
+메모 본문
+사용자 이메일
+사용자 UUID
+기기 ID
+기기 공개키
+기기 개인키
+access token
+refresh token
+```
+
+### 판정기 표시
+
+현재 판정기의 공식 규칙 ID는 다음 세 개입니다.
+
+```
+device_registered
+step_up_required
+resource_zone
+```
+
+`src/decider.mjs`는 계속 `docs/DECIDER_REQUEST.md`의 공식 필드만 사용합니다.
+
+다음과 같은 임의 요청 필드는 판정에 사용하지 않습니다.
+
+```
+request.role
+request.identity
+request.device
+request.geo
+```
+
+### 탐지 사건 표시
+
+`src/detect.mjs`는 탐지 결과로 다음과 같은 회수 제안을 만들 수 있습니다.
+
+```
+propose_revocation
+```
+
+그러나 현재 저장소에는 실제 운영 탐지 사건을 영구 저장하는 사건 저장소가 없습니다.
+
+따라서 작전실에서는 사건 수를 임의로 `0건`이라고 표시하지 않습니다.
+
+현재 상태는 다음과 같이 구분합니다.
+
+```
+status: not_recorded
+observedIncidentCount: null
+revocationIntegration: proposal_only
+```
+
+즉, 탐지 규칙이 존재하는 것과 실제 운영 사건이 저장되었다는 것은 서로 다른 사실입니다.
+
+### 기기 회수 상태
+
+현재 로그인 사용자에게 속한 `vault_devices.status`만 서버에서 집계합니다.
+
+표시하는 상태:
+
+```
+total
+pending
+approved
+revoked
+```
+
+기기 ID나 공개키는 작전실에 노출하지 않습니다.
+
+또한 `src/detect.mjs`의 `propose_revocation` 결과가
+실제로 기기 상태를 `revoked`로 변경했다는 의미로 표시하지 않습니다.
+
+현재 탐지와 실제 회수 상태 변경은 별개의 경로입니다.
+
+### 복구 상태
+
+복구 현황은 현재 로그인 사용자의 `virtual_note_backups`에서
+`backup_version`만 읽어 집계합니다.
+
+작전실은 복구 사본의 메모 제목이나 본문을 읽지 않습니다.
+
+실제 복구 API:
+
+```
+POST /api/restore/:id
+```
+
+`aleph.config.json`의 복구 경로도 동일하게 유지합니다.
+
+```
+/api/restore/:id
+```
+
+### 1~11단계 실측 확인표
+
+확인표에는 다음 항목을 구분해서 기록합니다.
+
+```
+단계
+정상 / 금지
+요청
+기대 결과
+실제 결과
+점검 요청 ID
+확인 시각
+```
+
+`점검 요청 ID`는 브라우저가 각각의 실측 실행을 구분하기 위해 생성하는 UUID입니다.
+
+이 값은 서버나 ALEPH SDP 엔진이 발급한 요청 ID를 의미하지 않습니다.
+
+실제 API 호출을 수행하지 않은 항목은 다음과 같이 유지합니다.
+
+```
+실제 결과: 미실행
+점검 요청 ID: 미실행
+확인 시각: 미실행
+```
+
+실행하지 않은 시험을 성공으로 간주하지 않습니다.
+
+### Preview에서 실제 확인한 결과
+
+12단계 Preview Deployment에서 실제 확인한 결과:
+
+```
+Stage 1
+GET /
+→ HTTP 200
+
+Stage 2 / 5
+GET /data.json
+→ HTTP 200
+→ 공개 notes 배열이 비어 있음
+
+Stage 6 / 11
+승인된 현재 기기에서 서명한 GET /api/notes
+→ HTTP 200
+
+Stage 6 / 11
+로그인 상태에서 서명 없이 GET /api/notes
+→ HTTP 403
+
+Stage 11
+서명된 보호 자료 GET
+→ HTTP 200
+
+Stage 11
+서명 없는 보호 자료 GET
+→ HTTP 403
+```
+
+Preview에서 다음 요청은 실제 애플리케이션 인증 결과로 판정하지 않았습니다.
+
+```
+GET /api/notes · 무인증
+GET /api/notes · 잘못된 Bearer
+```
+
+해당 Preview Deployment에는 Vercel Deployment Protection이 적용되어 있습니다.
+
+인증 쿠키를 제외한 요청은 애플리케이션 `/api/notes`에 도달하기 전에
+Vercel SSO로 리다이렉트되므로, 이 결과를 애플리케이션의 `401` 또는 `403` 방어 성공으로 기록하지 않습니다.
+
+따라서 Preview에서는 두 항목을 `미실행`으로 유지하며
+공개 Production 배포 후 다시 실제 API 응답을 확인합니다.
+
+### 의도적으로 미실행으로 유지한 시험
+
+현재 작전실에서 다음 시험은 임의로 실행하거나 통과 처리하지 않습니다.
+
+```
+Stage 7  복합 이상 접속의 step_up 판정
+Stage 8  본인 메모 단건 조회
+Stage 8  타인 메모 단건 조회 차단
+Stage 9  10분 안 121회 GET 탐지
+Stage 10 지정 복구 사본 복원
+```
+
+해당 기능 자체의 과거 단계 시험과
+현재 12단계 화면에서 수행한 실측 요청은 구분합니다.
+
+### 41종 총공세
+
+12단계 작전실은 41종 총공세 결과를 생성하거나 추측하지 않습니다.
+
+```
+ALEPH 심판 실행 전:
+41종 총공세 결과 미확정
+
+ALEPH 심판 실행 후:
+실제 심판 판정만 기록
+```
+
+로컬 `decider:test`, `detect:test`, `attack-check` 결과를
+41종 총공세 통과 결과로 바꾸어 표시하지 않습니다.
+
+---
+
+## 12단계 설치
+
+필수 환경:
+
+```
+Node.js 22 이상
+npm
+Supabase 프로젝트
+Vercel 배포 환경
+```
+
+의존성 설치:
+
+```
+npm install
+```
+
+실제 비밀번호, 사용자 토큰, Supabase 서버 전용 키, 기기 개인키를
+저장소나 문서에 기록하지 않습니다.
+
+Vercel 서버 함수에서 필요한 비밀값은 Vercel 환경변수로만 설정합니다.
+
+---
+
+## 12단계 실행
+
+이 저장소에는 장시간 실행되는 로컬 개발 서버 스크립트가 없습니다.
+
+`package.json`에는 `dev` 또는 `start` 스크립트가 없으므로
+존재하지 않는 로컬 실행 명령을 사용하지 않습니다.
+
+로컬에서 정적 결과물과 빌드 흐름을 확인할 때는 다음을 실행합니다.
+
+```
+npm run build -- --local
+```
+
+이 명령은 검증용 로컬 빌드이며 Vercel 배포 성공이나
+실제 API 실행을 의미하지 않습니다.
+
+실제 애플리케이션과 Serverless Function은 Vercel 배포 환경에서 실행합니다.
+
+현재 공개 Production URL:
+
+```
+https://choi-bujang-secret-vault-alpha.vercel.app
+```
+
+브랜치를 GitHub에 push하면 연결된 Vercel 프로젝트에서
+Preview Deployment를 생성하여 배포 전 동작을 확인할 수 있습니다.
+
+---
+
+## 12단계 중지
+
+`npm run build -- --local`은 빌드가 완료되면 프로세스가 종료되므로
+별도의 로컬 서버 중지 절차가 없습니다.
+
+현재 저장소에는 다음과 같은 장시간 실행 프로세스가 없습니다.
+
+```
+npm run dev
+npm start
+```
+
+Vercel Preview 또는 Production Deployment의 실행 상태는
+저장소의 로컬 프로세스가 아니라 Vercel 배포 상태로 관리합니다.
+
+---
+
+## 12단계 복구 절차
+
+12단계 작전실 자체는 메모 복구를 자동 실행하지 않습니다.
+
+메모 복구는 10단계에서 구현한 기존 복구 경로를 사용합니다.
+
+```
+POST /api/restore/:id
+```
+
+복구 전에 반드시 다음 조건을 확인합니다.
+
+```
+로그인 사용자
+복구 대상 메모 소유권
+지정된 backup version
+백업 대상 메모 ID
+저장된 콘텐츠 SHA
+```
+
+복구는 지정된 사본 하나만 대상으로 하며
+데이터베이스 전체를 초기화하거나 임의의 다른 사용자 자료를 복구하지 않습니다.
+
+복구 기능의 재검증은 README의 10단계 복구 절차와 해당 단계에서 기록한 정책·API 검증 절차를 기준으로 수행합니다.
+
+Supabase 테이블을 임의로 삭제하거나 초기화하지 않습니다.
+
+문제가 발생하면 먼저 다음을 확인합니다.
+
+```
+git status
+git diff
+```
+
+전체 작업을 무조건 되돌리는 `git reset --hard`는 사용하지 않습니다.
+
+---
+
+## 학생 구현과 ALEPH SDP 엔진의 구분
+
+### 이 저장소에서 학생이 구현·관리하는 영역
+
+다음은 이 저장소에서 작성하거나 단계별로 수정한 애플리케이션 영역입니다.
+
+```
+public/index.html
+public/app.js
+api/*
+src/notes-api.mjs
+src/device-approval.mjs
+src/device-request.mjs
+src/policy-recovery.mjs
+src/resource-id.mjs
+src/decider.mjs의 학생 판정 규칙
+src/detect.mjs의 학생 탐지 규칙
+aleph.config.json
+Supabase 단계별 SQL
+로컬 시험 및 제출 보조 스크립트
+```
+
+### ALEPH SDP 엔진 / 심판 영역
+
+ALEPH SDP 엔진과 실제 심판 실행 환경은 이 저장소의 애플리케이션 코드가 아닙니다.
+
+이 저장소는 판정 규칙과 탐지 규칙, 제출 설정을 제공하며
+실제 ALEPH SDP 엔진과 심판은 외부 환경에서 이를 검증합니다.
+
+따라서 다음 결과는 서로 동일한 의미가 아닙니다.
+
+```
+npm run decider:test
+npm run detect:test
+npm run bundle
+Vercel 실제 API 결과
+ALEPH SDP 엔진 결과
+ALEPH 심판 최종 점수
+```
+
+`npm run decider:test`와 `npm run detect:test`는 학생 저장소의 로컬 계약 시험입니다.
+
+`npm run bundle`은 제출 묶음 생성 및 자체 검증 과정입니다.
+
+실제 심판 점수와 41종 총공세 결과는 ALEPH 심판 실행 결과만 사용합니다.
+
+`aleph.config.json`의 `judgeIssuer`는 제공된 심판 설정을 유지하며 임의로 변경하지 않습니다.
+
+---
+
+## 12단계 제출 설정
+
+현재 단계:
+
+```
+{
+  "step": 12
+}
+```
+
+복구 경로:
+
+```
+{
+  "restoreRoute": "/api/restore/:id"
+}
+```
+
+`src/attack-check.mjs`는 기존 공격 점검 계약을 변경하지 않고
+12단계에서도 실행할 수 있도록 단계 허용 범위에 `12`만 추가했습니다.
+
+기존 `attackId`, `expected`, `observed` 제출 구조를 임의로 확장하지 않습니다.
+
+---
+
+## 12단계 검증 원칙
+
+다음 항목은 서로 별도로 기록합니다.
+
+```
+구현 완료
+정적 검사 통과
+로컬 자체 시험 통과
+Preview 실제 API 확인
+Production 실제 API 확인
+제출 bundle 생성
+ALEPH 심판 제출
+ALEPH 심판 판정
+```
+
+앞 단계가 성공했다고 해서 다음 단계까지 성공한 것으로 간주하지 않습니다.
+
+특히 실제로 수행하지 않은 요청과 41종 총공세는
+심판 결과가 확인되기 전까지 통과로 기록하지 않습니다.
