@@ -81,6 +81,17 @@ const list = document.querySelector('#notes');
 
 const verificationChecks = [
     {
+        id: 'stage1-public-root',
+        stage: '1',
+        kind: '정상',
+        request:
+            'GET / · 공개 배포 화면',
+        expected:
+            '200 허용',
+        runnable:
+            'public_root',
+    },
+    {
         id: 'stage3-anonymous-notes',
         stage: '3~5',
         kind: '금지',
@@ -104,7 +115,7 @@ const verificationChecks = [
     },
     {
         id: 'stage5-static-data',
-        stage: '5',
+        stage: '2 / 5',
         kind: '금지',
         request:
             'GET /data.json',
@@ -2029,6 +2040,38 @@ function renderVerificationTable() {
     );
 }
 
+async function runPublicRootCheck() {
+    const requestId =
+        verificationRequestId();
+
+    const checkedAt =
+        verificationCheckedAt();
+
+    const response =
+        await fetch(
+            '/',
+            {
+                method: 'GET',
+                credentials: 'same-origin',
+                cache: 'no-store',
+            },
+        );
+
+    const allowed =
+        response.status === 200;
+
+    await response.body?.cancel();
+
+    return {
+        requestId,
+        checkedAt,
+        ok: allowed,
+        actual: allowed
+            ? 'HTTP 200 · 공개 배포 화면 응답 확인'
+            : `HTTP ${response.status} · 기대한 배포 응답이 아님`,
+    };
+}
+
 async function runAnonymousNotesCheck() {
     const requestId =
         verificationRequestId();
@@ -2253,6 +2296,12 @@ async function runVerificationChecks() {
             let record = null;
 
             if (
+                check.runnable
+                === 'public_root'
+            ) {
+                record =
+                    await runPublicRootCheck();
+            } else if (
                 check.runnable
                 === 'anonymous_notes'
             ) {
