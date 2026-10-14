@@ -1,0 +1,23 @@
+{
+  "schema": "aleph.test-policy.v1",
+  "revision": "stage10-compromised-fixture",
+  "policy": {
+    "ruleIds": [
+      "device_registered",
+      "step_up_required",
+      "resource_zone"
+    ],
+    "deviceRegisteredRequired": true,
+    "compositeRiskRequiresStepUp": true,
+    "notes": {
+      "ownerRead": true,
+      "ownerUpdate": true,
+      "otherOwnerRead": false,
+      "otherOwnerUpdate": false
+    },
+    "announcements": {
+      "studentUpdate": false,
+      "instructorCheckRequired": true
+    }
+  }
+}

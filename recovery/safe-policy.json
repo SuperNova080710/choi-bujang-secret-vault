@@ -1,0 +1,24 @@
+{
+    "schema": "aleph.safe-policy-backup.v1",
+    "version": "stage9-100-fc33950",
+    "sourceCommit": "fc3395086df56cdbdd7be0c2f8541273c4be9225",
+    "policy": {
+        "ruleIds": [
+            "device_registered",
+            "step_up_required",
+            "resource_zone"
+        ],
+        "deviceRegisteredRequired": true,
+        "compositeRiskRequiresStepUp": true,
+        "notes": {
+            "ownerRead": true,
+            "ownerUpdate": true,
+            "otherOwnerRead": false,
+            "otherOwnerUpdate": false
+        },
+        "announcements": {
+            "studentUpdate": false,
+            "instructorCheckRequired": true
+        }
+    }
+}
