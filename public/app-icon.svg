@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">BYTE BACK</title>
+
+  <rect width="512" height="512" rx="112" fill="#101a28"></rect>
+
+  <path d="M156 120h144c64 0 104 32 104 84 0 31-16 56-44 70 36 13 56 42 56 78 0 60-46 96-118 96H156V120Zm134 126c32 0 50-13 50-36 0-24-18-36-50-36h-70v72h70Zm10 148c36 0 56-15 56-43 0-27-20-42-56-42h-80v85h80Z" fill="#8ad8df"></path>
+</svg>

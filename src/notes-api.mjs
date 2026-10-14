@@ -85,6 +85,9 @@ export async function authenticateRequest(request) {
         return {
             ok: true,
             userId: login.userId,
+            authSource: hasBearerHeader
+                ? 'bearer'
+                : 'cookie',
         };
     } catch {
         return {

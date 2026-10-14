@@ -1408,3 +1408,258 @@ npm run detect:test
 - 10단계 심판 판정: 미실행
 
 로컬 검증 결과, 데이터베이스 사전 백업 검증, 실제 배포, 심판 판정은 서로 다른 검증 단계로 취급합니다.
+
+## 10단계 최종 결과 갱신
+
+> 이 절은 위쪽에 남아 있는 10단계 제출 전 상태 기록보다 최신입니다.
+
+- 브랜치: `stage10`
+- 구현 저장점: `c30eaf8` (`feat: 10단계 저장점`)
+- main 병합: `fd9472f` (`Merge pull request #47 from SuperNova080710/stage10`)
+- PR: `#47`
+- Vercel 배포: 완료
+- `npm run bundle`: 통과
+- 심판 제출: 완료
+- 심판 판정: **100점 통과**
+
+따라서 위쪽 10단계 문서에서 `bundle 미실행`, `Vercel 배포 미실행`, `심판 판정 미실행`으로 적힌 부분은 당시 저장점 이전의 역사적 상태이며 현재 상태를 의미하지 않습니다.
+
+10단계에서 사용한 실제 복구 경로는 다음과 같습니다.
+
+```text
+POST /api/restore/:id
+```
+
+`aleph.config.json`의 `restoreRoute`도 이 실제 경로와 일치해야 합니다.
+
+---
+
+## 11단계 — 나만의 접속 앱을 완성합니다
+
+### 목표
+
+기존 BYTE BACK 자료실을 설치형 웹앱으로 제공하면서, 앱 설치 여부 자체를 기기 신뢰 근거로 사용하지 않습니다.
+
+보호 자료는 로그인만으로 표시하지 않으며 서버가 등록 기기로 확인하고 현재 실행 세션이 해당 기기 개인키를 보유한 경우에만 기존 자료실을 엽니다.
+
+기기 개인키나 승인 토큰은 브라우저 영구 저장소에 저장하지 않습니다.
+
+### 제작 1 — 설치형 웹앱 화면
+
+추가한 공개 리소스:
+
+```text
+public/manifest.webmanifest
+public/app-icon.svg
+```
+
+`public/index.html`에 다음을 추가했습니다.
+
+```text
+Web App Manifest 연결
+설치형 실행 여부 표시
+온라인 / 오프라인 상태 표시
+기기 승인 상태 표시
+설치 여부와 기기 승인 여부가 별개라는 안내
+```
+
+설치형 앱으로 실행되고 있다는 사실만으로 `approved` 상태를 만들지 않습니다.
+
+오프라인 상태에서는 보호 자료를 새로 읽거나 기기 승인 상태를 확인할 수 없다고 표시합니다.
+
+### 제작 2 — 서버 기기 승인
+
+서버 전용 테이블:
+
+```text
+public.vault_devices
+public.vault_device_request_nonces
+```
+
+두 테이블 모두 RLS를 활성화했으며 다음 역할의 직접 테이블 권한을 제거했습니다.
+
+```text
+PUBLIC
+anon
+authenticated
+```
+
+기기 승인 관련 API:
+
+```text
+POST /api/device/request
+POST /api/device/approve
+GET  /api/device/status
+```
+
+승인 흐름:
+
+```text
+로그인
+→ 브라우저 메모리에서 P-256 키 생성
+→ 서버에 공개키와 기기 승인 요청
+→ 서버가 pending 기기와 일회용 challenge 생성
+→ 브라우저가 개인키로 challenge 서명
+→ 서버가 저장된 공개키로 서명 검증
+→ 검증 성공 뒤에만 approved
+→ 별도 상태 API로 서버 승인 결과 재확인
+→ 승인 확인 뒤 보호 자료 표시
+```
+
+승인 버튼 클릭 자체는 승인으로 처리하지 않습니다.
+
+### 기기 키 저장 정책
+
+기기 개인키는 현재 페이지 실행 중 JavaScript 메모리에만 존재합니다.
+
+다음 브라우저 저장소에는 기기 키나 승인 토큰을 기록하지 않습니다.
+
+```text
+localStorage
+sessionStorage
+IndexedDB
+```
+
+서버는 기기 공개키만 저장합니다.
+
+기기 식별자는 JavaScript에서 읽을 수 없는 `HttpOnly` 쿠키로 관리합니다.
+
+로그아웃 시 인증 쿠키와 함께 기기 식별 쿠키도 제거합니다.
+
+페이지를 새로고침하여 서버에 승인 이력이 남아 있더라도 현재 실행 세션의 개인키가 사라졌다면 보호 자료를 표시하지 않습니다.
+
+### 보호 요청 서명
+
+브라우저의 보호된 메모 요청은 다음 값을 하나의 서명 payload에 묶습니다.
+
+```text
+HTTP method
+실제 request path + query
+요청 body SHA-256
+timestamp
+nonce
+```
+
+P-256 ECDSA / SHA-256으로 현재 메모리의 기기 개인키를 사용해 서명합니다.
+
+서버는 실제 도착한 요청에서 같은 값을 다시 계산하여 저장된 기기 공개키로 검증합니다.
+
+서명 검증 뒤 `(device_id, nonce)`를 서버 DB에 기록하여 같은 nonce의 재사용을 거부합니다.
+
+### 이번 단계의 세 공격에 대한 처리
+
+서명 없는 보호 요청:
+
+```text
+DEVICE_SIGNATURE_REQUIRED
+```
+
+서명한 뒤 요청 경로를 변경:
+
+```text
+서명 payload의 target과 실제 request target 불일치
+→ DEVICE_SIGNATURE_INVALID
+```
+
+서명한 뒤 메모 수정 본문을 변경:
+
+```text
+서명 payload의 body SHA-256과 실제 요청 body SHA-256 불일치
+→ DEVICE_SIGNATURE_INVALID
+```
+
+### 기존 인증 경로 보존
+
+`authenticateRequest()`는 서버 내부에서 다음 두 인증 출처를 구분합니다.
+
+```text
+cookie
+bearer
+```
+
+일반 브라우저의 HttpOnly-cookie 인증 요청에는 승인된 기기와 요청 서명을 추가로 요구합니다.
+
+기존 심판의 Bearer 인증 경로는 이전 단계 검증 호환성을 위해 기존 인증·소유권 경로를 유지합니다.
+
+이 `authSource` 값은 서버 내부 인증 흐름을 구분하기 위한 값이며 `src/decider.mjs`의 요청 계약에 추가되는 필드가 아닙니다.
+
+### 승인 전 자료 차단
+
+로그인 성공만으로 `/api/notes`를 읽지 않습니다.
+
+```text
+로그인 성공
+→ 서버 기기 상태 조회
+→ 미등록 / pending / revoked / 현재 기기 키 없음
+   → 메모 폼 숨김
+   → 실제 메모 미표시
+→ 서버 approved + 현재 메모리 개인키 존재
+   → 서명된 /api/notes 요청
+   → 기존 자료실 표시
+```
+
+### 기존 판정기 계약
+
+`src/decider.mjs`는 11단계에서 수정하지 않았습니다.
+
+계속 `docs/DECIDER_REQUEST.md`에 정의된 요청 필드만 사용하며 다음과 같은 임의 요청 값을 읽지 않습니다.
+
+```text
+request.role
+request.identity
+request.device
+request.geo
+request.device.approval
+```
+
+기존 `RULE_IDS`도 그대로 유지합니다.
+
+```text
+device_registered
+step_up_required
+resource_zone
+```
+
+### 11단계 검증 상태
+
+실제로 확인한 항목:
+
+```text
+manifest JSON 검증                     통과
+PWA 정적 리소스 build 보존             통과
+브라우저 영구 저장소 미사용             확인
+P-256 challenge 정상 서명               통과
+변경된 challenge 서명                   거부 확인
+경로 변경 후 기존 서명                  거부 확인
+본문 변경 후 기존 서명                  거부 확인
+기기 테이블 RLS                         활성화 확인
+PUBLIC 직접 권한                        없음 확인
+anon 직접 권한                          없음 확인
+authenticated 직접 권한                 없음 확인
+승인 전 보호 자료 비표시                 확인
+승인 뒤 기존 자료실 표시                 확인
+서명 없는 cookie 보호 요청               거부 확인
+기존 decider:test                       통과
+기존 Stage 7 fixture                    통과
+기존 Stage 9 detect:test                통과
+Stage 8 resource-id 테스트              6/6 통과
+Stage 8 decider 테스트                  15/15 통과
+Stage 8 API guard 테스트                7/7 통과
+npm run build -- --local                통과
+git diff --check                        통과
+```
+
+아직 완료로 주장하지 않는 항목:
+
+```text
+11단계 저장점 커밋
+11단계 npm run bundle
+stage11 원격 push
+PR 생성 및 main 병합
+Vercel 11단계 배포
+11단계 심판 제출
+11단계 심판 판정
+```
+
+로컬 검증, 데이터베이스 설정 검증, 실제 배포, 심판 판정은 서로 다른 검증 단계로 취급합니다.
+
