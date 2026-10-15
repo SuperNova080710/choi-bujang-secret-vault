@@ -1,0 +1,15 @@
+{
+    "schema": "aleph.ops-record.v1",
+    "step": 12,
+    "commit": null,
+    "checkedAt": null,
+    "note": "아직 Production 점검 기록을 생성하지 않았습니다. 실제 실행하지 않은 항목을 통과로 계산하지 않습니다.",
+    "counts": {
+        "total": 0,
+        "blocked": 0,
+        "allowed": 0,
+        "unexpected": 0,
+        "notRun": 0
+    },
+    "rows": []
+}
