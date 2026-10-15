@@ -217,18 +217,29 @@ export async function runAttackChecks(
   const staticEmpty =
     staticLength === 0;
 
+  if (evidenceRecords) {
+    const staticEvidence =
+      evidenceRecords.get(
+        'anonymous_static_note_read',
+      );
+
+    if (staticEvidence) {
+      evidenceRecords.set(
+        'anonymous_static_note_read',
+        {
+          ...staticEvidence,
+          staticNotesEmpty:
+            staticEmpty,
+        },
+      );
+    }
+  }
+
   results.push({
     attackId: 'anonymous_static_note_read',
     expected: '공개 정적 /data.json에서는 가상 자료를 조회할 수 없어야 함',
     observed:
-      Number.isInteger(
-        staticLength,
-      )
-        ? (
-          `HTTP ${staticResponse.status}; `
-          + `jsonArrayLength=${staticLength}`
-        )
-        : `HTTP ${staticResponse.status}`,
+      `HTTP ${staticResponse.status}`,
   });
 
   if (config.step >= 5) {
