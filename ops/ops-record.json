@@ -1,8 +1,8 @@
 {
   "schema": "aleph.ops-record.v1",
   "step": 12,
-  "commit": "63cfa4825f162d4c1979e22df0c8e4a66fc1ddda",
-  "checkedAt": "2026-10-15T02:04:42.582Z",
+  "commit": "8583e684ca09255f33acfdfe19aa6dfd94e75c7e",
+  "checkedAt": "2026-10-15T02:25:04.640Z",
   "note": "실제 Production에 보낸 GET 점검의 기록입니다. 판정·탐지 항목은 고정된 가상 입력 결과이며 실제 사용자 기기나 실제 사건이 아닙니다. 미실행 항목은 통과로 계산하지 않으며 41종 총공세의 심판 판정과도 구분합니다.",
   "counts": {
     "total": 20,
@@ -21,9 +21,9 @@
       "observed": "HTTP 401",
       "result": "blocked",
       "requestIds": [
-        "b2e7744a-6b79-46a8-9af3-4adc770cbcd6"
+        "d0d51590-c434-4f58-9f78-dd4ea95faca3"
       ],
-      "checkedAt": "2026-10-15T02:04:36.642Z"
+      "checkedAt": "2026-10-15T02:24:59.919Z"
     },
     {
       "attackId": "invalid_token_api_note_read",
@@ -34,9 +34,9 @@
       "observed": "HTTP 401",
       "result": "blocked",
       "requestIds": [
-        "fa2ae6c5-0d4b-4985-b2eb-982033c9f1c7"
+        "f60b54ff-d421-4ebf-b777-007513efa58a"
       ],
-      "checkedAt": "2026-10-15T02:04:37.205Z"
+      "checkedAt": "2026-10-15T02:25:00.260Z"
     },
     {
       "attackId": "anonymous_api_note_detail",
@@ -47,9 +47,9 @@
       "observed": "HTTP 401",
       "result": "blocked",
       "requestIds": [
-        "0aa1e430-e69f-4b7e-9258-3aa9a82faa52"
+        "fb51f919-82be-4e7c-8833-00c92b1302a8"
       ],
-      "checkedAt": "2026-10-15T02:04:37.662Z"
+      "checkedAt": "2026-10-15T02:25:00.516Z"
     },
     {
       "attackId": "anonymous_api_note_update",
@@ -82,22 +82,22 @@
       "observed": "HTTP 200; jsonArrayLength=0",
       "result": "blocked",
       "requestIds": [
-        "228873d7-bc53-4e10-be8a-8ff6125aa98b"
+        "7ffd0e29-3b0b-403a-baa3-e92e1bae3b99"
       ],
-      "checkedAt": "2026-10-15T02:04:38.123Z"
+      "checkedAt": "2026-10-15T02:25:00.761Z"
     },
     {
-      "attackId": "public_html_no_supabase_key",
-      "stage": 5,
+      "attackId": "public_root_available",
+      "stage": 1,
       "kind": "allow",
       "area": "app",
-      "expected": "공개 HTML에 Supabase 키 또는 프로젝트 URL 할당이 없어야 함",
+      "expected": "공개 루트가 HTTP 200으로 열리고 HTML에 Supabase 키 또는 프로젝트 URL 할당이 없어야 함",
       "observed": "HTTP 200",
       "result": "allowed",
       "requestIds": [
-        "8cb7468b-0679-425d-b778-8e42ce235a4e"
+        "1cc926f1-33af-4343-9a53-f1e2cf30390f"
       ],
-      "checkedAt": "2026-10-15T02:04:38.346Z"
+      "checkedAt": "2026-10-15T02:25:01.001Z"
     },
     {
       "attackId": "public_key_direct_rest_read",
@@ -108,9 +108,9 @@
       "observed": "HTTP 401",
       "result": "blocked",
       "requestIds": [
-        "53630045-69c6-4115-b5db-dc4a9fd8b54b"
+        "960943f7-f883-45d8-ae9e-c37b2bddc050"
       ],
-      "checkedAt": "2026-10-15T02:04:38.797Z"
+      "checkedAt": "2026-10-15T02:25:01.269Z"
     },
     {
       "attackId": "registered_device_allowed",
@@ -121,9 +121,9 @@
       "observed": "HTTP 200; jsonReady=true",
       "result": "allowed",
       "requestIds": [
-        "1eadad67-3dd8-4db2-9984-4c2548b18674"
+        "359b63b8-706e-4268-bcf8-f1f55b93c0f6"
       ],
-      "checkedAt": "2026-10-15T02:04:39.731Z"
+      "checkedAt": "2026-10-15T02:25:02.054Z"
     },
     {
       "attackId": "unregistered_device_denied",
@@ -134,9 +134,9 @@
       "observed": "HTTP 200; jsonReady=true",
       "result": "blocked",
       "requestIds": [
-        "d9196143-34d1-4fc7-99d9-34e2745e4962"
+        "41f0331a-7200-437d-965c-ed80ba8c1912"
       ],
-      "checkedAt": "2026-10-15T02:04:39.950Z"
+      "checkedAt": "2026-10-15T02:25:02.269Z"
     },
     {
       "attackId": "composite_risk_requires_step_up",
@@ -147,9 +147,9 @@
       "observed": "HTTP 200; jsonReady=true",
       "result": "blocked",
       "requestIds": [
-        "47cd26c2-0d38-4992-9fbf-0e9599ad23b0"
+        "2de9b18f-7227-42ba-bc90-c6cfa50f0078"
       ],
-      "checkedAt": "2026-10-15T02:04:40.377Z"
+      "checkedAt": "2026-10-15T02:25:02.482Z"
     },
     {
       "attackId": "step_up_verified_allows_retry",
@@ -160,9 +160,9 @@
       "observed": "HTTP 200; jsonReady=true",
       "result": "allowed",
       "requestIds": [
-        "3717ecef-ffbb-40b5-993f-687d0a4cef62"
+        "60d93645-0b24-41ce-a255-b6520c12ad60"
       ],
-      "checkedAt": "2026-10-15T02:04:40.598Z"
+      "checkedAt": "2026-10-15T02:25:02.705Z"
     },
     {
       "attackId": "note_list_route_denied",
@@ -173,9 +173,9 @@
       "observed": "HTTP 200; jsonReady=true",
       "result": "blocked",
       "requestIds": [
-        "adc3ebd5-b01a-4a11-9435-5d7e8266e568"
+        "c288a474-4ce9-45b0-a24a-a728bac97e94"
       ],
-      "checkedAt": "2026-10-15T02:04:40.831Z"
+      "checkedAt": "2026-10-15T02:25:02.914Z"
     },
     {
       "attackId": "unknown_resource_path_denied",
@@ -186,9 +186,9 @@
       "observed": "HTTP 200; jsonReady=true",
       "result": "blocked",
       "requestIds": [
-        "3a250024-b944-4590-bbf5-b5e8c444d92f"
+        "459eb95c-9139-4970-a192-48b504ec84ec"
       ],
-      "checkedAt": "2026-10-15T02:04:41.042Z"
+      "checkedAt": "2026-10-15T02:25:03.132Z"
     },
     {
       "attackId": "student_announcement_update_denied",
@@ -199,9 +199,9 @@
       "observed": "HTTP 200; jsonReady=true",
       "result": "blocked",
       "requestIds": [
-        "3d392a90-232a-4fa0-89bf-6e69b76f0533"
+        "6095522f-ec97-4961-907e-166e5c3d4e3d"
       ],
-      "checkedAt": "2026-10-15T02:04:41.264Z"
+      "checkedAt": "2026-10-15T02:25:03.339Z"
     },
     {
       "attackId": "burst_read_revocation_proposed",
@@ -212,9 +212,9 @@
       "observed": "HTTP 200; jsonReady=true",
       "result": "blocked",
       "requestIds": [
-        "71f5ab3e-8e33-4a33-bd20-3bce6de2ce48"
+        "427bc257-42fb-4250-9f0f-735eb8c11d5a"
       ],
-      "checkedAt": "2026-10-15T02:04:41.494Z"
+      "checkedAt": "2026-10-15T02:25:03.547Z"
     },
     {
       "attackId": "restore_without_login",
@@ -225,9 +225,9 @@
       "observed": "HTTP 405",
       "result": "blocked",
       "requestIds": [
-        "00769ecc-f99c-4aac-bc8e-d98519d51d0f"
+        "66c14942-b840-4301-a7cd-a33b0600dec7"
       ],
-      "checkedAt": "2026-10-15T02:04:41.710Z"
+      "checkedAt": "2026-10-15T02:25:03.756Z"
     },
     {
       "attackId": "device_status_without_login",
@@ -238,9 +238,9 @@
       "observed": "HTTP 401",
       "result": "blocked",
       "requestIds": [
-        "73740aae-7727-48da-bfb0-9843251cd660"
+        "434d287e-e7ea-4959-b104-3edc0135eed5"
       ],
-      "checkedAt": "2026-10-15T02:04:41.944Z"
+      "checkedAt": "2026-10-15T02:25:03.991Z"
     },
     {
       "attackId": "device_status_forged_signal",
@@ -251,9 +251,9 @@
       "observed": "HTTP 401",
       "result": "blocked",
       "requestIds": [
-        "947c7687-16fb-4b62-8d69-5c3e087d17d7"
+        "aeb646cd-b7a1-4cbb-8c61-16382d723d6f"
       ],
-      "checkedAt": "2026-10-15T02:04:42.149Z"
+      "checkedAt": "2026-10-15T02:25:04.197Z"
     },
     {
       "attackId": "operations_record_api",
@@ -264,9 +264,9 @@
       "observed": "HTTP 200",
       "result": "allowed",
       "requestIds": [
-        "3815de2b-8ce4-401b-9302-8e38ac173e0e"
+        "3fb88677-6010-4b16-b56b-cf276e5bc9ba"
       ],
-      "checkedAt": "2026-10-15T02:04:42.360Z"
+      "checkedAt": "2026-10-15T02:25:04.417Z"
     }
   ]
 }
