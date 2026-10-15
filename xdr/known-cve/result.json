@@ -52,21 +52,21 @@
     },
     {
       "alertId": "kc-09",
-      "action": "alert",
-      "confidence": 0.65,
-      "reason": "known_cve_probe_trace: T1190 문맥의 알려진 취약점 점검 흔적입니다."
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "normal_activity: 알려진 취약점 악용 패턴이 확인되지 않았습니다."
     },
     {
       "alertId": "kc-10",
-      "action": "alert",
-      "confidence": 0.65,
-      "reason": "known_cve_probe_trace: T1190 문맥의 알려진 취약점 점검 흔적입니다."
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "normal_activity: 알려진 취약점 악용 패턴이 확인되지 않았습니다."
     },
     {
       "alertId": "kc-11",
-      "action": "alert",
-      "confidence": 0.65,
-      "reason": "known_cve_probe_trace: T1190 문맥의 알려진 취약점 점검 흔적입니다."
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "normal_activity: 알려진 취약점 악용 패턴이 확인되지 않았습니다."
     },
     {
       "alertId": "kc-12",
@@ -76,27 +76,27 @@
     },
     {
       "alertId": "kc-13",
-      "action": "alert",
-      "confidence": 0.65,
-      "reason": "known_cve_probe_trace: T1190 문맥의 알려진 취약점 점검 흔적입니다."
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "normal_activity: 알려진 취약점 악용 패턴이 확인되지 않았습니다."
     },
     {
       "alertId": "kc-14",
-      "action": "alert",
-      "confidence": 0.65,
-      "reason": "known_cve_probe_trace: T1190 문맥의 알려진 취약점 점검 흔적입니다."
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "normal_activity: 알려진 취약점 악용 패턴이 확인되지 않았습니다."
     },
     {
       "alertId": "kc-15",
       "action": "alert",
       "confidence": 0.65,
-      "reason": "known_cve_probe_trace: T1190 문맥의 알려진 취약점 점검 흔적입니다."
+      "reason": "known_cve_probe_trace: 불완전하거나 반복된 알려진 취약점 점검 신호입니다."
     },
     {
       "alertId": "kc-16",
       "action": "alert",
       "confidence": 0.65,
-      "reason": "known_cve_probe_trace: T1190 문맥의 알려진 취약점 점검 흔적입니다."
+      "reason": "known_cve_probe_trace: 불완전하거나 반복된 알려진 취약점 점검 신호입니다."
     },
     {
       "alertId": "kc-17",
@@ -149,7 +149,7 @@
   ],
   "counts": {
     "block": 8,
-    "alert": 7,
-    "record": 9
+    "alert": 2,
+    "record": 14
   }
 }
