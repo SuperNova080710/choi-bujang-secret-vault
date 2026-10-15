@@ -51,6 +51,13 @@ const CHECK_META =
             check: 'empty_array',
         },
 
+        public_html_no_supabase_key: {
+            stage: 5,
+            kind: 'allow',
+            area: 'app',
+            check: 'http_200',
+        },
+
         public_key_direct_rest_read: {
             stage: 5,
             kind: 'deny',
@@ -142,6 +149,13 @@ const CHECK_META =
             check: 'http_200',
         },
     });
+
+export const CHECK_IDS =
+    Object.freeze(
+        Object.keys(
+            CHECK_META,
+        ),
+    );
 
 function httpStatus(
     observed,
