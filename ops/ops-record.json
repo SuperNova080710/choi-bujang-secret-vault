@@ -79,7 +79,7 @@
       "kind": "deny",
       "area": "access",
       "expected": "공개 정적 /data.json에서는 가상 자료를 조회할 수 없어야 함",
-      "observed": "HTTP 200; jsonArrayLength=0",
+      "observed": "HTTP 200",
       "result": "blocked",
       "requestIds": [
         "7ffd0e29-3b0b-403a-baa3-e92e1bae3b99"

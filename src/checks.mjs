@@ -202,6 +202,7 @@ function jsonArrayLength(
 function matched(
     meta,
     observed,
+    evidence,
 ) {
     if (
         typeof observed
@@ -232,9 +233,8 @@ function matched(
 
         case 'empty_array':
             return status === 200
-                && jsonArrayLength(
-                    observed,
-                ) === 0;
+                && evidence?.staticNotesEmpty
+                === true;
 
         case 'http_200':
             return status === 200;
@@ -375,6 +375,7 @@ export function buildOpsRows(
                 matched(
                     meta,
                     observed,
+                    evidence,
                 )
             ) {
                 result =
