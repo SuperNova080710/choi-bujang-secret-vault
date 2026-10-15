@@ -19,6 +19,7 @@ import {
 
 import {
     buildOpsRows,
+    CHECK_IDS,
     countRows,
 } from '../src/checks.mjs';
 
@@ -70,9 +71,21 @@ function validateRows(rows) {
         );
     }
 
-    if (rows.length !== 20) {
+    if (
+        CHECK_IDS.length
+        !== 20
+    ) {
         throw new Error(
-            `점검 행은 20개여야 합니다. 현재 ${rows.length}개입니다.`,
+            `CHECK_META는 20개여야 합니다. 현재 ${CHECK_IDS.length}개입니다.`,
+        );
+    }
+
+    if (
+        rows.length
+        !== CHECK_IDS.length
+    ) {
+        throw new Error(
+            `점검 행과 CHECK_META 개수가 다릅니다. rows=${rows.length}, meta=${CHECK_IDS.length}`,
         );
     }
 
@@ -104,6 +117,16 @@ function validateRows(rows) {
         ids.add(
             row.attackId,
         );
+
+        if (
+            !CHECK_IDS.includes(
+                row.attackId,
+            )
+        ) {
+            throw new Error(
+                `CHECK_META에 없는 attackId: ${row.attackId}`,
+            );
+        }
 
         if (
             row.result
@@ -154,6 +177,15 @@ function validateRows(rows) {
                 `${row.attackId}: 실제 실행 결과는 HTTP 관측값이어야 합니다.`,
             );
         }
+    }
+
+    if (
+        ids.size
+        !== CHECK_IDS.length
+    ) {
+        throw new Error(
+            '점검 행의 attackId 집합이 CHECK_META와 일치하지 않습니다.',
+        );
     }
 }
 
