@@ -334,6 +334,30 @@ try {
         '가상 응답 기준 예상과 다른 행이 있습니다.',
     );
 
+    const representedStages =
+        [...new Set(
+            rows
+                .map(
+                    row =>
+                        row.stage,
+                )
+                .filter(
+                    Number.isInteger,
+                ),
+        )].sort(
+            (left, right) =>
+                left - right,
+        );
+
+    assert.deepEqual(
+        representedStages,
+        [
+            1, 2, 3, 4, 5, 6,
+            7, 8, 9, 10, 11, 12,
+        ],
+        '작전실 점검 행은 Stage 1~12를 모두 대표해야 합니다.',
+    );
+
     const notRunIds =
         rows
             .filter(
@@ -449,6 +473,10 @@ try {
 
     console.log(
         '통과 · 실제 실행 18개 / 미실행 2개 증적 구조',
+    );
+
+    console.log(
+        '통과 · Stage 1~12 점검 행 모두 존재',
     );
 
     console.log(
