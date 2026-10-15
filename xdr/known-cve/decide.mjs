@@ -11,22 +11,14 @@ const PATTERNS = Object.freeze([
     },
     {
         name: 'known_cve_probe_trace',
-        condition: '규칙 설명에 알려진 취약점 점검 또는 CVE-2021-44228 점검 흔적이 있고 MITRE T1190 표기가 함께 있는 경우',
-        basis: '공개 취약점을 대상으로 한 점검·탐색 흔적은 실제 악용 전 탐색일 수 있으므로 CVE-2021-44228 및 MITRE ATT&CK T1190 근거의 보조 신호로만 사용합니다.',
+        condition: '불완전한 원격 조회 흔적 또는 같은 출발지의 반복된 CVE-2021-44228 탐색처럼 실제 점검 시도와 가까운 신호가 있고 MITRE T1190 표기가 함께 있는 경우',
+        basis: '공개 취약점 이름이나 일반 보안 용어만으로는 공격을 확정하지 않고, 실제 악용 전 탐색과 더 가까운 반복·불완전 lookup 신호만 보조 신호로 사용합니다.',
     },
 ]);
 
 const DIRECT_LOOKUP_PATTERN = /\$\{jndi:[^{}\s:]+:\/\/[^{}\s]+\}/iu;
-const PROBE_TERMS = [
-    'cve-2021-44228',
-    'jndi',
-    '취약점',
-    '점검',
-    '라이브러리',
-    '조회 형태',
-    'lookup',
-    'probe',
-];
+const CVE_PATTERN = /cve-2021-44228/iu;
+const INCOMPLETE_LOOKUP_PATTERN = /lookup[-_ ]?fragment/iu;
 
 function hasDirectLookup(value) {
     return typeof value === 'string'
@@ -38,22 +30,35 @@ function hasMitreT1190(alert) {
         && alert.rule.mitre.includes('T1190');
 }
 
-function hasProbeTrace(alert) {
+function eventCount(alert) {
+    const count = Number(alert?.data?.count);
+
+    return Number.isFinite(count)
+        ? count
+        : 0;
+}
+
+function hasAmbiguousProbeTrace(alert) {
     if (!hasMitreT1190(alert)) {
         return false;
     }
 
     const description = typeof alert?.rule?.description === 'string'
-        ? alert.rule.description.toLowerCase()
+        ? alert.rule.description
         : '';
     const url = typeof alert?.data?.url === 'string'
-        ? alert.data.url.toLowerCase()
+        ? alert.data.url
         : '';
 
-    return PROBE_TERMS.some((term) => (
-        description.includes(term)
-        || url.includes(term)
-    ));
+    const incompleteLookup = (
+        INCOMPLETE_LOOKUP_PATTERN.test(description)
+        || INCOMPLETE_LOOKUP_PATTERN.test(url)
+    );
+
+    const repeatedCveSearch = eventCount(alert) >= 2
+        && CVE_PATTERN.test(url);
+
+    return incompleteLookup || repeatedCveSearch;
 }
 
 function decision(action, confidence, patternName) {
@@ -84,11 +89,11 @@ export function decide(alert) {
         );
     }
 
-    if (hasProbeTrace(alert)) {
+    if (hasAmbiguousProbeTrace(alert)) {
         return {
             action: 'alert',
             confidence: 0.65,
-            reason: `${PATTERNS[2].name}: T1190 문맥의 알려진 취약점 점검 흔적입니다.`,
+            reason: `${PATTERNS[2].name}: 불완전하거나 반복된 알려진 취약점 점검 신호입니다.`,
         };
     }
 
