@@ -1,0 +1,155 @@
+{
+  "schema": "aleph.xdr.result.v1",
+  "moduleKey": "persistence",
+  "decisions": [
+    {
+      "alertId": "ps-01",
+      "action": "block",
+      "confidence": 0.95,
+      "reason": "unsigned_new_service_registration: 명확한 지속성 공격 신호와 일치합니다."
+    },
+    {
+      "alertId": "ps-02",
+      "action": "block",
+      "confidence": 0.95,
+      "reason": "unfamiliar_scheduled_task: 명확한 지속성 공격 신호와 일치합니다."
+    },
+    {
+      "alertId": "ps-03",
+      "action": "block",
+      "confidence": 0.95,
+      "reason": "startup_folder_change: 명확한 지속성 공격 신호와 일치합니다."
+    },
+    {
+      "alertId": "ps-04",
+      "action": "block",
+      "confidence": 0.95,
+      "reason": "unsigned_new_service_registration: 명확한 지속성 공격 신호와 일치합니다."
+    },
+    {
+      "alertId": "ps-05",
+      "action": "block",
+      "confidence": 0.95,
+      "reason": "unfamiliar_scheduled_task: 명확한 지속성 공격 신호와 일치합니다."
+    },
+    {
+      "alertId": "ps-06",
+      "action": "block",
+      "confidence": 0.95,
+      "reason": "unsigned_new_service_registration: 명확한 지속성 공격 신호와 일치합니다."
+    },
+    {
+      "alertId": "ps-07",
+      "action": "block",
+      "confidence": 0.95,
+      "reason": "unfamiliar_scheduled_task: 명확한 지속성 공격 신호와 일치합니다."
+    },
+    {
+      "alertId": "ps-08",
+      "action": "block",
+      "confidence": 0.95,
+      "reason": "unsigned_new_service_registration: 명확한 지속성 공격 신호와 일치합니다."
+    },
+    {
+      "alertId": "ps-09",
+      "action": "alert",
+      "confidence": 0.65,
+      "reason": "unfamiliar_scheduled_task: 지속성 기법 문맥의 애매한 변화 신호입니다."
+    },
+    {
+      "alertId": "ps-10",
+      "action": "alert",
+      "confidence": 0.65,
+      "reason": "startup_folder_change: 지속성 기법 문맥의 애매한 변화 신호입니다."
+    },
+    {
+      "alertId": "ps-11",
+      "action": "alert",
+      "confidence": 0.65,
+      "reason": "unsigned_new_service_registration: 지속성 기법 문맥의 애매한 변화 신호입니다."
+    },
+    {
+      "alertId": "ps-12",
+      "action": "alert",
+      "confidence": 0.65,
+      "reason": "unfamiliar_scheduled_task: 지속성 기법 문맥의 애매한 변화 신호입니다."
+    },
+    {
+      "alertId": "ps-13",
+      "action": "alert",
+      "confidence": 0.65,
+      "reason": "unsigned_new_service_registration: 지속성 기법 문맥의 애매한 변화 신호입니다."
+    },
+    {
+      "alertId": "ps-14",
+      "action": "alert",
+      "confidence": 0.65,
+      "reason": "startup_folder_change: 지속성 기법 문맥의 애매한 변화 신호입니다."
+    },
+    {
+      "alertId": "ps-15",
+      "action": "alert",
+      "confidence": 0.65,
+      "reason": "unfamiliar_scheduled_task: 지속성 기법 문맥의 애매한 변화 신호입니다."
+    },
+    {
+      "alertId": "ps-16",
+      "action": "alert",
+      "confidence": 0.65,
+      "reason": "unsigned_new_service_registration: 지속성 기법 문맥의 애매한 변화 신호입니다."
+    },
+    {
+      "alertId": "ps-17",
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "normal_activity: 지속성 공격 패턴이 확인되지 않았습니다."
+    },
+    {
+      "alertId": "ps-18",
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "normal_activity: 지속성 공격 패턴이 확인되지 않았습니다."
+    },
+    {
+      "alertId": "ps-19",
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "normal_activity: 지속성 공격 패턴이 확인되지 않았습니다."
+    },
+    {
+      "alertId": "ps-20",
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "normal_activity: 지속성 공격 패턴이 확인되지 않았습니다."
+    },
+    {
+      "alertId": "ps-21",
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "normal_activity: 지속성 공격 패턴이 확인되지 않았습니다."
+    },
+    {
+      "alertId": "ps-22",
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "normal_activity: 지속성 공격 패턴이 확인되지 않았습니다."
+    },
+    {
+      "alertId": "ps-23",
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "normal_activity: 지속성 공격 패턴이 확인되지 않았습니다."
+    },
+    {
+      "alertId": "ps-24",
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "normal_activity: 지속성 공격 패턴이 확인되지 않았습니다."
+    }
+  ],
+  "counts": {
+    "block": 8,
+    "alert": 8,
+    "record": 8
+  }
+}

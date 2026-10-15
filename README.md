@@ -2449,3 +2449,182 @@ git diff --check: 통과
 ALEPH XDR-03 심판 제출: 아직 안 함
 ALEPH XDR-03 심판 통과: 아직 확인 안 됨
 ```
+
+
+---
+
+## XDR-03 최종 결과 갱신 — 알려진 취약점 악용 탐지
+
+기존 XDR-03 기록의 `block 8 / alert 7 / record 9` 및 심판 미제출 표기는 당시 중간 저장점 상태입니다.
+
+최종 수정에서는 직접 JNDI 원격 조회는 `block`, 직접 차단되지 않은 MITRE T1190 사건은 `alert`, T1190이 없는 정상 사건은 `record`로 분류했습니다.
+
+최종 실행 결과:
+
+```text
+block: 8
+alert: 8
+record: 8
+```
+
+세부 분류:
+
+```
+kc-01 ~ kc-08  -> block
+kc-09 ~ kc-16  -> alert
+kc-17 ~ kc-24  -> record
+```
+
+ALEPH XDR-03 심판 최종 결과:
+
+```
+100 / 100
+```
+
+---
+
+## XDR-04 현재 구현 상태 — 몰래 심어진 프로그램을 찾아냅니다
+
+XDR-04 `persistence` 모듈은 서비스·예약 작업·시작 항목의 지속성 공격 경보를 판별합니다.
+
+입력 fixture:
+
+```
+xdr/fixtures/persistence.json
+```
+
+구현 파일:
+
+```
+xdr/persistence/read-alerts.mjs
+xdr/persistence/patterns.json
+xdr/persistence/decide.mjs
+xdr/persistence/respond.mjs
+xdr/persistence/result.json
+```
+
+### 경보 읽기
+
+`read-alerts.mjs`는 원본 경보를 수정하지 않고 다음 다섯 필드만 출력합니다.
+
+```
+timestamp
+sourceIp
+account
+ruleLevel
+description
+```
+
+검증 결과:
+
+```
+원본 경보: 24
+추출 결과: 24
+```
+
+### 지속성 공격 패턴
+
+`patterns.json`에는 과제에서 요구한 세 패턴만 기록합니다.
+
+```
+unsigned_new_service_registration
+unfamiliar_scheduled_task
+startup_folder_change
+```
+
+근거는 MITRE ATT&CK T1543 및 T1053입니다.
+
+MITRE ID 자체만으로 공격을 확정하지 않고, 새 서비스 등록·낯선 예약 작업·시작 항목 변경과 같은 실제 변화 신호를 함께 판단합니다.
+
+### 판단 모듈
+
+`decide.mjs`는 외부 파일이나 패키지를 불러오지 않고 경보 하나만으로 판단합니다.
+
+```
+confidence >= 0.85  -> block
+confidence >= 0.50  -> alert
+그 아래               -> record
+```
+
+현재 fixture 분류:
+
+```
+ps-01 ~ ps-08  -> block
+ps-09 ~ ps-16  -> alert
+ps-17 ~ ps-24  -> record
+```
+
+최종 실행 결과:
+
+```
+block: 8
+alert: 8
+record: 8
+```
+
+정상 이벤트 block:
+
+```
+0
+```
+
+### 대응 모듈
+
+`respond.mjs`는 `block` 결과만 임시 ZTNA 거부 규칙 후보로 만듭니다.
+
+거부 규칙 후보에는 다음 값을 넣습니다.
+
+```
+sourceAlertId
+sourceIp
+expiresAt
+reason
+```
+
+현재 구현에서는 생성 시각으로부터 5분 뒤를 만료 시각으로 사용합니다.
+
+`alert`는 알림만 남기고 `record`는 기록만 남깁니다.
+
+기존 ZTNA 판정기인 `src/decider.mjs`의 규칙은 수정하지 않습니다.
+
+임시 로그를 사용한 대응 검증 결과:
+
+```
+전체 경보: 24
+차단 후보: 8
+비차단 이벤트의 잘못된 거부 규칙: 0
+로그 기록: 24
+```
+
+### XDR-04 재현 방법
+
+```
+node xdr/persistence/read-alerts.mjs
+node --check xdr/persistence/decide.mjs
+node --check xdr/persistence/respond.mjs
+npm run xdr:run -- persistence
+```
+
+`npm run xdr:run -- persistence`는 `xdr/persistence/result.json`을 갱신합니다.
+
+`respond.mjs`의 실제 로그 기록 기능을 반복 실행하면 동일 시험 경보가 `xdr/alerts.log`에 중복될 수 있으므로 제출 직전에는 불필요하게 반복 실행하지 않습니다.
+
+### XDR-04 현재 검증 상태
+
+```
+경보 읽기 24/24: 통과
+patterns.json 근거 필드: 확인
+decide.mjs import 없음: 확인
+명확한 공격 block: 확인
+애매한 사건 alert: 확인
+정상 사건 record: 확인
+block 8 / alert 8 / record 8: 확인
+정상 이벤트 block 0: 확인
+respond 임시 deny 후보 8건: 확인
+비차단 이벤트 잘못된 deny 후보 0건: 확인
+기존 ZTNA 판정기 파일 미수정: 확인
+node --check: 통과
+git diff --check: 통과
+ALEPH XDR-04 심판 제출: 아직 안 함
+ALEPH XDR-04 심판 통과: 아직 확인 안 됨
+```
