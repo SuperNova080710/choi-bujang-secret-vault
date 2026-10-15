@@ -85,6 +85,7 @@ export async function runAttackChecks(
         input,
         {
           ...init,
+          method: 'GET',
 
           alephEvidence: {
             caseId:
@@ -242,7 +243,6 @@ export async function runAttackChecks(
       );
 
     if (!keyPageResponse.ok) {
-      await keyPageResponse.body?.cancel();
 
       throw new Error(
         `공개 페이지 확인 실패: HTTP ${keyPageResponse.status}`,
@@ -315,6 +315,9 @@ export async function runAttackChecks(
           app,
         ),
         {
+          method:
+            'GET',
+
           headers: {
             accept:
               'application/json',
@@ -329,8 +332,6 @@ export async function runAttackChecks(
       );
 
     if (!publicConfigResponse.ok) {
-      await publicConfigResponse.body
-        ?.cancel();
 
       throw new Error(
         `공개 설정 조회 실패: HTTP ${publicConfigResponse.status}`,
@@ -364,9 +365,10 @@ export async function runAttackChecks(
       );
     }
 
-    const restUrl = new URL(originalApi.pathname, originalApi.origin);
-    restUrl.searchParams.set('select', 'id');
-    restUrl.searchParams.set('limit', '1');
+    const restUrl = new URL(
+      `${originalApi.pathname}?select=id&limit=1`,
+      originalApi.origin,
+    );
 
     const directResponse =
       await evidenceFetch(
@@ -384,7 +386,6 @@ export async function runAttackChecks(
       );
 
     const directApiStatus = directResponse.status;
-    await directResponse.body?.cancel();
 
     if (directApiStatus !== 401 && directApiStatus !== 403) {
       throw new Error(
@@ -513,8 +514,6 @@ export async function runAttackChecks(
           null;
       }
     } else {
-      await response.body
-        ?.cancel();
     }
 
     const ready =
@@ -576,9 +575,6 @@ export async function runAttackChecks(
       `HTTP ${restoreResponse.status}`,
   });
 
-  await restoreResponse.body
-    ?.cancel();
-
   const deviceStatusResponse =
     await evidenceFetch(
       'device_status_without_login',
@@ -605,9 +601,6 @@ export async function runAttackChecks(
     observed:
       `HTTP ${deviceStatusResponse.status}`,
   });
-
-  await deviceStatusResponse.body
-    ?.cancel();
 
   const forgedDeviceResponse =
     await evidenceFetch(
@@ -647,9 +640,6 @@ export async function runAttackChecks(
       `HTTP ${forgedDeviceResponse.status}`,
   });
 
-  await forgedDeviceResponse.body
-    ?.cancel();
-
   const operationsResponse =
     await evidenceFetch(
       'operations_record_api',
@@ -676,9 +666,6 @@ export async function runAttackChecks(
     observed:
       `HTTP ${operationsResponse.status}`,
   });
-
-  await operationsResponse.body
-    ?.cancel();
 
   return results;
 }
