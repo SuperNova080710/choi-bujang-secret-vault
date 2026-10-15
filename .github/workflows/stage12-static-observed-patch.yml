@@ -1,0 +1,116 @@
+name: Stage 12 static observed patch
+
+on:
+  push:
+    branches:
+      - stage12-fix-static-observed
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: stage12-fix-static-observed
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Patch observed evidence
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+
+          const attackPath = 'src/attack-check.mjs';
+          let attack = readFileSync(attackPath, 'utf8');
+
+          const staticMarker = `  const staticEmpty =\n    staticLength === 0;\n\n`;
+          if (!attack.includes(staticMarker)) {
+            throw new Error('staticEmpty 구문을 찾지 못했습니다.');
+          }
+
+          const evidenceBlock = `  const staticEmpty =\n    staticLength === 0;\n\n  if (evidenceRecords) {\n    const staticEvidence =\n      evidenceRecords.get(\n        'anonymous_static_note_read',\n      );\n\n    if (staticEvidence) {\n      evidenceRecords.set(\n        'anonymous_static_note_read',\n        {\n          ...staticEvidence,\n          staticNotesEmpty:\n            staticEmpty,\n        },\n      );\n    }\n  }\n\n`;
+          attack = attack.replace(staticMarker, evidenceBlock);
+
+          const observedBefore = `    observed:\n      Number.isInteger(\n        staticLength,\n      )\n        ? (\n          \`HTTP \${staticResponse.status}; \`\n          + \`jsonArrayLength=\${staticLength}\`\n        )\n        : \`HTTP \${staticResponse.status}\`,\n`;
+          const observedAfter = `    observed:\n      \`HTTP \${staticResponse.status}\`,\n`;
+          if (!attack.includes(observedBefore)) {
+            throw new Error('anonymous_static_note_read observed 구문을 찾지 못했습니다.');
+          }
+          attack = attack.replace(observedBefore, observedAfter);
+          writeFileSync(attackPath, attack, 'utf8');
+
+          const checksPath = 'src/checks.mjs';
+          let checks = readFileSync(checksPath, 'utf8');
+
+          const matchedBefore = `function matched(\n    meta,\n    observed,\n) {`;
+          const matchedAfter = `function matched(\n    meta,\n    observed,\n    evidence,\n) {`;
+          if (!checks.includes(matchedBefore)) {
+            throw new Error('matched 함수 시그니처를 찾지 못했습니다.');
+          }
+          checks = checks.replace(matchedBefore, matchedAfter);
+
+          const emptyBefore = `        case 'empty_array':\n            return status === 200\n                && jsonArrayLength(\n                    observed,\n                ) === 0;`;
+          const emptyAfter = `        case 'empty_array':\n            return status === 200\n                && evidence?.staticNotesEmpty\n                === true;`;
+          if (!checks.includes(emptyBefore)) {
+            throw new Error('empty_array 판정 구문을 찾지 못했습니다.');
+          }
+          checks = checks.replace(emptyBefore, emptyAfter);
+
+          const callBefore = `                matched(\n                    meta,\n                    observed,\n                )`;
+          const callAfter = `                matched(\n                    meta,\n                    observed,\n                    evidence,\n                )`;
+          if (!checks.includes(callBefore)) {
+            throw new Error('matched 호출 구문을 찾지 못했습니다.');
+          }
+          checks = checks.replace(callBefore, callAfter);
+          writeFileSync(checksPath, checks, 'utf8');
+
+          const recordPath = 'ops/ops-record.json';
+          const record = JSON.parse(readFileSync(recordPath, 'utf8'));
+          const row = record.rows?.find(
+            item => item.attackId === 'anonymous_static_note_read',
+          );
+          if (!row) {
+            throw new Error('ops record의 anonymous_static_note_read 행을 찾지 못했습니다.');
+          }
+          if (row.result !== 'blocked' || row.requestIds?.length !== 1) {
+            throw new Error('기존 Stage 2 실측 행 상태가 예상과 다릅니다.');
+          }
+          if (!String(row.observed).includes('jsonArrayLength=0')) {
+            throw new Error('기존 Stage 2 observed 형식이 예상과 다릅니다.');
+          }
+          row.observed = 'HTTP 200';
+          writeFileSync(recordPath, `${JSON.stringify(record, null, 2)}\n`, 'utf8');
+          NODE
+
+      - name: Validate
+        run: |
+          node --check src/attack-check.mjs
+          node --check src/checks.mjs
+          npm run ops:self-test
+          git diff --check
+          git diff -- src/attack-check.mjs src/checks.mjs ops/ops-record.json
+
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/attack-check.mjs src/checks.mjs ops/ops-record.json
+          git commit -m "fix: Stage 2 제출 observed를 HTTP 상태로 제한" \
+            -m "- anonymous_static_note_read 제출 기록에서 심판 비가시 jsonArrayLength 제거" \
+            -m "- 빈 정적 자료 확인은 내부 실측 증적으로 유지해 작전실 집계 보존"
+          git push origin HEAD:stage12-fix-static-observed
+
+      - name: Bundle after commit
+        run: npm run bundle
