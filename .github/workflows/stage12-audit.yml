@@ -31,7 +31,7 @@ jobs:
 
       - name: Apply Stage 12 audit fixes
         if: github.event_name == 'push'
-        run: node scripts/stage12-audit-fix.mjs
+        run: node scripts/stage12-audit-fix-v2.mjs
 
       - name: Syntax checks
         run: |
@@ -39,7 +39,7 @@ jobs:
           node --check src/attack-check.mjs
           node --check scripts/ops-record.mjs
           node --check scripts/ops-self-test.mjs
-          node --check scripts/stage12-audit-fix.mjs
+          node --check scripts/stage12-audit-fix-v2.mjs
           node --check api/device/status.js
           node --check public/app.js
 
