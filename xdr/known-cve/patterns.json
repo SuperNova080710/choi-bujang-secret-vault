@@ -1,0 +1,21 @@
+{
+  "schema": "aleph.xdr.patterns.v1",
+  "moduleKey": "known-cve",
+  "patterns": [
+    {
+      "name": "jndi_remote_lookup_header",
+      "condition": "요청 머리글에 ${jndi: 로 시작하고 :// 원격 조회 대상이 이어지는 JNDI lookup 형태가 있는 경우",
+      "basis": "CVE-2021-44228의 대표적인 Log4j JNDI 원격 조회 악용 형태이며 MITRE ATT&CK T1190의 공개 애플리케이션 취약점 악용에 해당합니다."
+    },
+    {
+      "name": "jndi_remote_lookup_argument",
+      "condition": "URL 또는 요청 인자에 ${jndi: 로 시작하고 :// 원격 조회 대상이 이어지는 JNDI lookup 형태가 있는 경우",
+      "basis": "CVE-2021-44228은 사용자 입력이 로그에 기록될 때 JNDI lookup을 이용해 원격 자원을 조회하도록 악용될 수 있으며 MITRE ATT&CK T1190과 연결됩니다."
+    },
+    {
+      "name": "known_cve_probe_trace",
+      "condition": "규칙 설명에 알려진 취약점 점검 또는 CVE-2021-44228 점검 흔적이 있고 MITRE T1190 표기가 함께 있는 경우",
+      "basis": "공개 취약점을 대상으로 한 점검·탐색 흔적은 실제 악용 전 탐색일 수 있으므로 CVE-2021-44228 및 MITRE ATT&CK T1190 근거의 보조 신호로만 사용합니다."
+    }
+  ]
+}
