@@ -68,17 +68,7 @@ function isClearAttack(alert) {
     const files = numericData(alert, 'files');
     const count = numericData(alert, 'count');
 
-    const strongTransferSignal = /(
-        대용량 전송|
-        처음 보는 목적지|
-        처음 보는 주소|
-        쓰지 않던 포트|
-        자료실 전체|
-        외부 주소로 복사|
-        명령 통로로 큰 파일|
-        압축 파일.*(?:나갔|올라갔)|
-        전송이 [0-9]+번
-    )/ux.test(description);
+    const strongTransferSignal = /(대용량 전송|처음 보는 목적지|처음 보는 주소|쓰지 않던 포트|자료실 전체|외부 주소로 복사|명령 통로로 큰 파일|압축 파일.*(?:나갔|올라갔)|전송이 [0-9]+번)/u.test(description);
 
     return bytes >= LARGE_TRANSFER_BYTES
         || files >= 50
