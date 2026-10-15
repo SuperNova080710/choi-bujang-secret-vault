@@ -1,0 +1,49 @@
+name: Stage 12 audit
+
+on:
+  push:
+    branches:
+      - stage12-fix-audit
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Syntax checks
+        run: |
+          node --check src/checks.mjs
+          node --check src/attack-check.mjs
+          node --check scripts/ops-record.mjs
+          node --check scripts/ops-self-test.mjs
+          node --check api/device/status.js
+          node --check public/app.js
+
+      - name: Stage 12 structure self-test
+        run: npm run ops:self-test
+
+      - name: Decider regression
+        run: npm run decider:test
+
+      - name: Detection regression
+        run: npm run detect:test
+
+      - name: Whitespace check
+        run: git diff --check HEAD^
