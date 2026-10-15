@@ -302,11 +302,65 @@ export async function runAttackChecks(
       );
     }
 
-    const publicKey = process.env.SUPABASE_PUBLISHABLE_KEY;
+    /*
+ * Publishable Key는 로컬 환경변수에서 읽지 않습니다.
+ *
+ * 배포된 앱의 공개 설정 GET에서 받아
+ * 심판의 격리 환경에서도 동일하게 재현되도록 합니다.
+ */
+    const publicConfigResponse =
+      await fetch(
+        new URL(
+          '/api/device/status?view=public-config',
+          app,
+        ),
+        {
+          headers: {
+            accept:
+              'application/json',
+          },
 
-    if (typeof publicKey !== 'string' || !publicKey.trim()) {
+          redirect:
+            'error',
+
+          signal:
+            timeout(),
+        },
+      );
+
+    if (!publicConfigResponse.ok) {
+      await publicConfigResponse.body
+        ?.cancel();
+
       throw new Error(
-        '직접 REST 검사 미완료: SUPABASE_PUBLISHABLE_KEY 환경변수가 필요합니다.',
+        `공개 설정 조회 실패: HTTP ${publicConfigResponse.status}`,
+      );
+    }
+
+    let publicConfig;
+
+    try {
+      publicConfig =
+        await publicConfigResponse.json();
+    } catch {
+      throw new Error(
+        '공개 설정 응답이 JSON이 아닙니다.',
+      );
+    }
+
+    const publicKey =
+      publicConfig?.publishableKey;
+
+    if (
+      typeof publicKey
+      !== 'string'
+      || !publicKey.trim()
+      || publicKey.startsWith(
+        'sb_secret_',
+      )
+    ) {
+      throw new Error(
+        '공개 설정에서 유효한 Publishable Key를 확인하지 못했습니다.',
       );
     }
 
@@ -341,7 +395,8 @@ export async function runAttackChecks(
     results.push({
       attackId: 'public_key_direct_rest_read',
       expected: '공개 Publishable Key로 원본 virtual_notes REST API의 직접 조회가 거부되어야 함',
-      observed: `원본 REST 직접 조회가 거부됨 (HTTP ${directApiStatus})`,
+      observed:
+        `HTTP ${directApiStatus}`,
     });
   }
 
