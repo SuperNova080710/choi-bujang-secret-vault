@@ -1,0 +1,21 @@
+{
+  "schema": "aleph.xdr.patterns.v1",
+  "moduleKey": "privilege",
+  "patterns": [
+    {
+      "name": "administrator_group_addition",
+      "condition": "MITRE T1078 문맥에서 평범한 계정이 administrators 같은 관리자 그룹에 새로 추가되거나 짧은 시간 안에 관리자 그룹 재가입이 반복되는 경우",
+      "basis": "정상 계정이 관리자 그룹에 새로 편입되는 행위는 탈취된 계정의 권한 확대에 악용될 수 있어 MITRE ATT&CK T1078 근거와 연결됩니다."
+    },
+    {
+      "name": "unfamiliar_admin_command",
+      "condition": "MITRE T1068 또는 T1078 문맥에서 평소와 다른 계정·주소·직후 권한 변경과 함께 처음 보는 관리자 명령이나 관리자 권한 명령이 실행되는 경우",
+      "basis": "관리자 권한을 새로 얻은 계정이 관리자 명령을 실행하는 행위는 권한 상승 악용 또는 정상 계정 도용 신호로 MITRE ATT&CK T1068·T1078에 해당합니다."
+    },
+    {
+      "name": "off_hours_privilege_use",
+      "condition": "MITRE T1068 또는 T1078 문맥에서 업무·수업 시간 밖처럼 평소와 다른 시각에 관리자 그룹 변경이나 관리자 권한 명령이 사용되는 경우",
+      "basis": "평소 사용 시간대에서 벗어난 관리자 권한 사용은 계정 도용이나 권한 상승을 의심할 수 있는 행위 신호로 MITRE ATT&CK T1068·T1078 근거와 연결됩니다."
+    }
+  ]
+}

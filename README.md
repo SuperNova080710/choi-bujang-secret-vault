@@ -2628,3 +2628,169 @@ git diff --check: 통과
 ALEPH XDR-04 심판 제출: 아직 안 함
 ALEPH XDR-04 심판 통과: 아직 확인 안 됨
 ```
+
+---
+
+## XDR-04 최종 결과 갱신 — 지속성 공격 탐지
+
+앞선 XDR-04 기록의 심판 미제출 표기는 당시 저장점 상태입니다.
+
+ALEPH XDR-04 심판 최종 결과:
+
+```text
+100 / 100
+```
+
+---
+
+## XDR-05 현재 구현 상태 — 권한 가로채기를 잡아 냅니다
+
+XDR-05 `privilege` 모듈은 계정·그룹 변경 및 관리자 권한 사용 경보를 바탕으로 비정상적인 권한 상승을 분류합니다.
+
+입력 fixture:
+
+```
+xdr/fixtures/privilege.json
+```
+
+구현 파일:
+
+```
+xdr/privilege/read-alerts.mjs
+xdr/privilege/patterns.json
+xdr/privilege/decide.mjs
+xdr/privilege/respond.mjs
+xdr/privilege/result.json
+```
+
+### 경보 읽기
+
+`read-alerts.mjs`는 원본 경보를 변경하지 않고 다음 다섯 필드만 추출합니다.
+
+```
+timestamp
+sourceIp
+account
+ruleLevel
+description
+```
+
+검증 결과:
+
+```
+원본 경보: 26
+추출 결과: 26
+```
+
+### 권한 상승 패턴
+
+`patterns.json`에는 과제에서 요구한 다음 세 패턴을 기록합니다.
+
+```
+administrator_group_addition
+unfamiliar_admin_command
+off_hours_privilege_use
+```
+
+근거는 MITRE ATT&CK T1068 및 T1078입니다.
+
+MITRE 기법 ID 또는 `관리자`라는 단어만으로 공격을 확정하지 않고, 관리자 그룹 변경·비정상 관리자 명령·평소와 다른 시간대의 권한 사용과 규칙 수준을 함께 판단합니다.
+
+### 판단 모듈
+
+`decide.mjs`는 외부 파일, 패키지, 네트워크를 사용하지 않고 `decide(alert)`만으로 판단합니다.
+
+```
+confidence >= 0.85  -> block
+confidence >= 0.50  -> alert
+그 아래               -> record
+```
+
+현재 fixture 분류:
+
+```
+pv-01 ~ pv-09  -> block
+pv-10 ~ pv-17  -> alert
+pv-18 ~ pv-26  -> record
+```
+
+최종 실행 결과:
+
+```
+block: 9
+alert: 8
+record: 9
+total: 26
+```
+
+정상 이벤트 block:
+
+```
+0
+```
+
+### 대응 모듈
+
+`respond.mjs`는 `block` 결과만 임시 ZTNA 거부 규칙 후보로 만듭니다.
+
+거부 규칙 후보에는 다음 정보를 포함합니다.
+
+```
+sourceAlertId
+sourceIp
+account
+expiresAt
+reason
+```
+
+현재 구현에서는 생성 시각으로부터 5분 뒤를 만료 시각으로 사용합니다.
+
+```
+block  -> block_candidate
+alert  -> alert_only
+record -> record_only
+```
+
+임시 로그를 이용한 대응 검증 결과:
+
+```
+전체 경보: 26
+차단 후보: 9
+비차단 이벤트의 잘못된 거부 규칙: 0
+로그 기록: 26
+```
+
+기존 ZTNA 판정기 `src/decider.mjs`의 규칙은 수정하지 않았습니다.
+
+### XDR-05 재현 방법
+
+```
+node xdr/privilege/read-alerts.mjs
+node --check xdr/privilege/decide.mjs
+node --check xdr/privilege/respond.mjs
+npm run xdr:run -- privilege
+```
+
+`npm run xdr:run -- privilege`는 `xdr/privilege/result.json`을 갱신합니다.
+
+`respond.mjs`의 실제 로그 기록 기능을 반복 실행하면 동일 시험 경보가 `xdr/alerts.log`에 중복될 수 있으므로 제출 직전에는 불필요하게 반복 실행하지 않습니다.
+
+### XDR-05 현재 검증 상태
+
+```
+경보 읽기 26/26: 통과
+patterns.json 근거 필드: 확인
+decide.mjs import 없음: 확인
+명확한 공격 block: 확인
+애매한 사건 alert: 확인
+정상 사건 record: 확인
+block 9 / alert 8 / record 9: 확인
+정상 이벤트 block 0: 확인
+respond 임시 deny 후보 9건: 확인
+비차단 이벤트 잘못된 deny 후보 0건: 확인
+기존 ZTNA 판정기 파일 미수정: 확인
+node --check: 통과
+git diff --check: 통과
+ALEPH XDR-05 심판 제출: 아직 안 함
+ALEPH XDR-05 심판 통과: 아직 확인 안 됨
+```
