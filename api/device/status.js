@@ -332,6 +332,44 @@ export default async function handler(
     }
 
     /*
+ * Stage 5 직접 REST 차단 점검에 필요한 공개 키입니다.
+ *
+ * Publishable Key는 공개 클라이언트용 값이며,
+ * SUPABASE_SECRET_KEY 등 서버 비밀값은 절대 반환하지 않습니다.
+ */
+    if (
+        request.query?.view
+        === 'public-config'
+    ) {
+        const publishableKey =
+            process.env
+                .SUPABASE_PUBLISHABLE_KEY;
+
+        if (
+            typeof publishableKey
+            !== 'string'
+            || !publishableKey.trim()
+            || publishableKey.startsWith(
+                'sb_secret_',
+            )
+        ) {
+            return response
+                .status(500)
+                .json({
+                    error:
+                        'PUBLIC_CONFIG_UNAVAILABLE',
+                });
+        }
+
+        return response
+            .status(200)
+            .json({
+                publishableKey:
+                    publishableKey.trim(),
+            });
+    }
+
+    /*
  * 12단계 고정 가상 판정·탐지 점검입니다.
  *
  * case 값은 미리 정의된 점검 하나를 선택하는 데만 사용합니다.
