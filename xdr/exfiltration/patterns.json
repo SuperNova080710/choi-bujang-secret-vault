@@ -1,0 +1,16 @@
+{
+  "schema": "aleph.xdr.patterns.v1",
+  "moduleKey": "exfiltration",
+  "patterns": [
+    {
+      "name": "large_transfer_to_unfamiliar_destination",
+      "condition": "MITRE T1041 또는 T1048 문맥에서 평소보다 큰 자료가 처음 보는 목적지나 외부 주소로 한 번에 또는 반복 전송되는 경우",
+      "basis": "처음 보는 목적지로 대용량 자료를 전송하는 행위는 명령 통로 또는 다른 프로토콜을 통한 유출 신호로 MITRE ATT&CK T1041·T1048 근거와 연결됩니다."
+    },
+    {
+      "name": "off_hours_archive_exfiltration",
+      "condition": "MITRE T1041 또는 T1048 문맥에서 업무·수업 시간 밖에 압축 파일이나 자료 묶음이 외부 또는 처음 보는 목적지로 전송되는 경우",
+      "basis": "비정상 시간대에 압축된 자료를 외부로 반출하는 행위는 데이터 유출을 의심할 수 있는 전송 신호로 MITRE ATT&CK T1041·T1048 근거와 연결됩니다."
+    }
+  ]
+}
