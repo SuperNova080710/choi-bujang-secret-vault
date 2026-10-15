@@ -11,6 +11,16 @@ import {
     RULE_IDS,
 } from '../../src/decider.mjs';
 
+import {
+    runRuleCheck,
+} from '../../src/rule-check.mjs';
+
+import operationsRecord
+    from '../../ops/ops-record.json'
+    with {
+    type: 'json',
+    };
+
 function summarizeDeviceStatuses(
     devices,
 ) {
@@ -208,6 +218,96 @@ async function respondOperationsSummary({
         });
 }
 
+function safeOperationsRecord() {
+    const rows =
+        Array.isArray(
+            operationsRecord?.rows,
+        )
+            ? operationsRecord.rows
+            : [];
+
+    const counts =
+        operationsRecord?.counts
+            && typeof operationsRecord.counts
+            === 'object'
+            ? operationsRecord.counts
+            : {};
+
+    return {
+        schema:
+            'aleph.operations.record.v1',
+
+        source:
+            'ops/ops-record.json',
+
+        record: {
+            status:
+                rows.length > 0
+                    ? 'recorded'
+                    : 'not_run',
+
+            step:
+                Number.isInteger(
+                    operationsRecord?.step,
+                )
+                    ? operationsRecord.step
+                    : 12,
+
+            commit:
+                typeof operationsRecord?.commit
+                    === 'string'
+                    ? operationsRecord.commit
+                    : null,
+
+            checkedAt:
+                typeof operationsRecord
+                    ?.checkedAt
+                    === 'string'
+                    ? operationsRecord.checkedAt
+                    : null,
+
+            counts: {
+                total:
+                    Number.isInteger(
+                        counts.total,
+                    )
+                        ? counts.total
+                        : rows.length,
+
+                blocked:
+                    Number.isInteger(
+                        counts.blocked,
+                    )
+                        ? counts.blocked
+                        : 0,
+
+                allowed:
+                    Number.isInteger(
+                        counts.allowed,
+                    )
+                        ? counts.allowed
+                        : 0,
+
+                unexpected:
+                    Number.isInteger(
+                        counts.unexpected,
+                    )
+                        ? counts.unexpected
+                        : 0,
+
+                notRun:
+                    Number.isInteger(
+                        counts.notRun,
+                    )
+                        ? counts.notRun
+                        : 0,
+            },
+
+            rows,
+        },
+    };
+}
+
 export default async function handler(
     request,
     response,
@@ -229,6 +329,73 @@ export default async function handler(
                 error:
                     'METHOD_NOT_ALLOWED',
             });
+    }
+
+    /*
+ * 12단계 고정 가상 판정·탐지 점검입니다.
+ *
+ * case 값은 미리 정의된 점검 하나를 선택하는 데만 사용합니다.
+ * 요청의 사용자 입력을 판정기 입력으로 전달하지 않습니다.
+ *
+ * 실제 사용자 기기 승인이나 실제 탐지 사건을 뜻하지 않습니다.
+ * 심판이 실제 GET 요청과 해당 점검 결과를 연결할 수 있도록
+ * 인증 전에 공개된 고정 점검 경로로 둡니다.
+ */
+    if (
+        request.query?.view
+        === 'rule-check'
+    ) {
+        const caseId =
+            request.query?.case;
+
+        if (
+            typeof caseId
+            !== 'string'
+        ) {
+            return response
+                .status(400)
+                .json({
+                    error:
+                        'INVALID_RULE_CHECK_CASE',
+                });
+        }
+
+        const result =
+            await runRuleCheck(
+                caseId,
+            );
+
+        if (!result) {
+            return response
+                .status(400)
+                .json({
+                    error:
+                        'UNKNOWN_RULE_CHECK_CASE',
+                });
+        }
+
+        return response
+            .status(200)
+            .json(result);
+    }
+    /*
+     * 12단계 Production 점검 기록입니다.
+     *
+     * 메모 본문, 사용자 ID, 토큰, 기기 키를 포함하지 않는
+     * 안전한 점검 메타데이터만 공개합니다.
+     *
+     * 화면과 심판이 같은 서버 기록을 확인할 수 있도록
+     * 인증 없이 읽기 전용 GET으로 제공합니다.
+     */
+    if (
+        request.query?.view
+        === 'operations-record'
+    ) {
+        return response
+            .status(200)
+            .json(
+                safeOperationsRecord(),
+            );
     }
 
     const authentication =

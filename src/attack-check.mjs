@@ -2,7 +2,10 @@ import { randomUUID } from 'node:crypto';
 
 // The student changes this check as each stage adds an attack to the same app.
 // Never return tokens, private keys, real names, or note bodies.
-export async function runAttackChecks(config) {
+export async function runAttackChecks(
+  config,
+  options = {},
+) {
   if (![3, 4, 5, 6, 7, 8, 9, 10, 11, 12].includes(config.step)) {
     throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   }
@@ -51,33 +54,48 @@ export async function runAttackChecks(config) {
   const apiUrl =
     new URL('/api/notes', app);
 
-  const evidenceFetch = (
-    attackId,
-    input,
-    init = {},
-  ) => fetch(
-    input,
-    {
-      ...init,
-      alephEvidence: {
-        caseId: attackId,
-        requestKey: randomUUID(),
-      },
-    },
-  );
+  const evidenceRecords =
+    options.evidenceRecords
+      instanceof Map
+      ? options.evidenceRecords
+      : null;
+  const evidenceFetch =
+    (
+      attackId,
+      input,
+      init = {},
+    ) => {
+      const requestId =
+        randomUUID();
 
-  async function isJsonError(response) {
-    if (response.status !== 401 && response.status !== 403) {
-      return false;
-    }
+      const checkedAt =
+        new Date().toISOString();
 
-    try {
-      const data = await response.json();
-      return typeof data?.error === 'string' && data.error.length > 0;
-    } catch {
-      return false;
-    }
-  }
+      if (evidenceRecords) {
+        evidenceRecords.set(
+          attackId,
+          {
+            requestId,
+            checkedAt,
+          },
+        );
+      }
+
+      return fetch(
+        input,
+        {
+          ...init,
+
+          alephEvidence: {
+            caseId:
+              attackId,
+
+            requestKey:
+              requestId,
+          },
+        },
+      );
+    };
 
   const results = [];
 
@@ -92,14 +110,11 @@ export async function runAttackChecks(config) {
       },
     );
 
-  const anonymousRejected = await isJsonError(anonymousResponse);
-
   results.push({
     attackId: 'anonymous_api_note_read',
     expected: '비로그인 요청으로 /api/notes에서 가상 자료를 조회할 수 없어야 함',
-    observed: anonymousRejected
-      ? `비로그인 목록 조회가 인증 오류 JSON으로 거부됨 (HTTP ${anonymousResponse.status})`
-      : `비로그인 목록 조회가 예상대로 거부되지 않음 (HTTP ${anonymousResponse.status})`,
+    observed:
+      `HTTP ${anonymousResponse.status}`,
   });
 
   // 잘못된 Bearer 토큰으로 목록 조회
@@ -117,14 +132,11 @@ export async function runAttackChecks(config) {
       },
     );
 
-  const invalidTokenRejected = await isJsonError(invalidTokenResponse);
-
   results.push({
     attackId: 'invalid_token_api_note_read',
     expected: '유효하지 않은 로그인 토큰으로 메모를 조회할 수 없어야 함',
-    observed: invalidTokenRejected
-      ? `유효하지 않은 토큰이 인증 오류 JSON으로 거부됨 (HTTP ${invalidTokenResponse.status})`
-      : `유효하지 않은 토큰이 예상대로 거부되지 않음 (HTTP ${invalidTokenResponse.status})`,
+    observed:
+      `HTTP ${invalidTokenResponse.status}`,
   });
 
   // 존재하지 않는 ID를 이용한 비로그인 상세 조회
@@ -141,14 +153,11 @@ export async function runAttackChecks(config) {
       },
     );
 
-  const anonymousDetailRejected = await isJsonError(anonymousDetailResponse);
-
   results.push({
     attackId: 'anonymous_api_note_detail',
     expected: '비로그인 요청으로 개별 메모를 조회할 수 없어야 함',
-    observed: anonymousDetailRejected
-      ? `비로그인 상세 조회가 인증 오류 JSON으로 거부됨 (HTTP ${anonymousDetailResponse.status})`
-      : `비로그인 상세 조회가 예상대로 거부되지 않음 (HTTP ${anonymousDetailResponse.status})`,
+    observed:
+      `HTTP ${anonymousDetailResponse.status}`,
   });
 
   // 비로그인 수정 요청
@@ -182,23 +191,43 @@ export async function runAttackChecks(config) {
       },
     );
 
-  let staticEmpty = false;
+  let staticLength =
+    null;
 
   if (staticResponse.ok) {
     try {
-      const data = await staticResponse.json();
-      staticEmpty = Array.isArray(data.notes) && data.notes.length === 0;
+      const data =
+        await staticResponse.json();
+
+      if (
+        Array.isArray(
+          data.notes,
+        )
+      ) {
+        staticLength =
+          data.notes.length;
+      }
     } catch {
-      // A non-JSON response is a failed check.
+      staticLength =
+        null;
     }
   }
+
+  const staticEmpty =
+    staticLength === 0;
 
   results.push({
     attackId: 'anonymous_static_note_read',
     expected: '공개 정적 /data.json에서는 가상 자료를 조회할 수 없어야 함',
-    observed: staticEmpty
-      ? '공개 정적 /data.json의 notes가 비어 있음'
-      : `공개 정적 /data.json에 가상 자료가 남아 있거나 응답을 확인할 수 없음 (HTTP ${staticResponse.status})`,
+    observed:
+      Number.isInteger(
+        staticLength,
+      )
+        ? (
+          `HTTP ${staticResponse.status}; `
+          + `jsonArrayLength=${staticLength}`
+        )
+        : `HTTP ${staticResponse.status}`,
   });
 
   if (config.step >= 5) {
@@ -227,51 +256,26 @@ export async function runAttackChecks(config) {
       /\bSUPABASE_PUBLISHABLE_KEY\s*=\s*['"][^'"]+['"]/
         .test(keyHtml);
 
+    const urlAssignmentPresent =
+      /\bSUPABASE_URL\s*=\s*['"][^'"]+['"]/
+        .test(keyHtml);
+
+    if (
+      keyAssignmentPresent
+      || urlAssignmentPresent
+    ) {
+      throw new Error(
+        '공개 HTML에서 Supabase 키 또는 URL 설정이 발견되었습니다.',
+      );
+    }
+
     results.push({
       attackId:
         'public_html_no_supabase_key',
       expected:
-        '공개 HTML에 Supabase Publishable Key 할당이 없어야 함',
+        '공개 HTML에 Supabase 키 또는 프로젝트 URL 할당이 없어야 함',
       observed:
-        keyAssignmentPresent
-          ? `HTTP ${keyPageResponse.status} · 공개 키 할당 발견`
-          : `HTTP ${keyPageResponse.status}`,
-    });
-
-    const urlPageResponse =
-      await evidenceFetch(
-        'public_html_no_supabase_url',
-        new URL('/', app),
-        {
-          redirect: 'error',
-          signal: timeout(),
-        },
-      );
-
-    if (!urlPageResponse.ok) {
-      await urlPageResponse.body?.cancel();
-
-      throw new Error(
-        `공개 페이지 확인 실패: HTTP ${urlPageResponse.status}`,
-      );
-    }
-
-    const urlHtml =
-      await urlPageResponse.text();
-
-    const urlAssignmentPresent =
-      /\bSUPABASE_URL\s*=\s*['"][^'"]+['"]/
-        .test(urlHtml);
-
-    results.push({
-      attackId:
-        'public_html_no_supabase_url',
-      expected:
-        '공개 HTML에 Supabase 프로젝트 URL 설정이 없어야 함',
-      observed:
-        urlAssignmentPresent
-          ? `HTTP ${urlPageResponse.status} · 프로젝트 URL 할당 발견`
-          : `HTTP ${urlPageResponse.status}`,
+        `HTTP ${keyPageResponse.status}`,
     });
 
     // 원본 REST API와 학생 인증 발급자가 같은 프로젝트인지 검증
@@ -341,311 +345,285 @@ export async function runAttackChecks(config) {
     });
   }
 
-  const decisionFixture = {
-    schema: 'aleph.decision.v1',
-    requestId: randomUUID(),
-    classId: 'class_fixture',
-    projectId: 'project_fixture',
-    subjectId: 'learner_fixture',
-    deviceId: 'aaaaaaaaaaaaaaaa',
-    service: 'notes',
-    method: 'GET',
-    path: '/notes/demo',
-    route: 'GET /notes/:id',
-    queryLength: 0,
-    querySha256:
-      'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
-    at: new Date().toISOString(),
-    policyRevision: 1,
-    deviceRegistered: true,
-    stepUp: {
-      verified: false,
-      authAgeSeconds: null,
+  /*
+ * 6~9단계 판정기·탐지 규칙은
+ * 배포된 서버의 고정 가상 점검 GET을 실제로 호출합니다.
+ *
+ * HTTP 요청은 항상 GET이며,
+ * 내부 가상 판정 입력의 method와는 별개입니다.
+ *
+ * 각 요청은 evidenceFetch를 통해
+ * attackId와 요청 ID를 alephEvidence로 연결합니다.
+ */
+  const virtualRuleChecks = [
+    {
+      minStep: 6,
+      attackId:
+        'registered_device_allowed',
+      expected:
+        '등록된 기기의 요청은 allow로 판정되어야 함',
     },
-    recentEvents: [],
-    signals: {
-      source: 'judge_fixture',
-      region: 'local',
-      network: 'usual',
-      hour: 14,
+    {
+      minStep: 6,
+      attackId:
+        'unregistered_device_denied',
+      expected:
+        '미등록 기기의 요청은 device_not_registered 사유로 거부되어야 함',
     },
-  };
+    {
+      minStep: 7,
+      attackId:
+        'composite_risk_requires_step_up',
+      expected:
+        '이상 시간·낯선 네트워크·최근 대량 조회가 함께 발생하면 step_up이어야 함',
+    },
+    {
+      minStep: 7,
+      attackId:
+        'step_up_verified_allows_retry',
+      expected:
+        '유효한 추가 확인 뒤 복합 이상 요청을 다시 판정하면 allow여야 함',
+    },
+    {
+      minStep: 8,
+      attackId:
+        'note_list_route_denied',
+      expected:
+        '판정기에서 메모 전체 목록 구역은 허용되지 않아야 함',
+    },
+    {
+      minStep: 8,
+      attackId:
+        'unknown_resource_path_denied',
+      expected:
+        ':id 위치에 export 같은 기능 이름을 넣은 알 수 없는 자원 경로는 거부되어야 함',
+    },
+    {
+      minStep: 8,
+      attackId:
+        'student_announcement_update_denied',
+      expected:
+        '강사 권한 연결이 없는 일반 학생의 공지 수정 요청은 거부되어야 함',
+    },
+    {
+      minStep: 9,
+      attackId:
+        'burst_read_revocation_proposed',
+      expected:
+        '같은 가명 사용자의 10분 안 GET 조회가 120건을 넘으면 burst_read 회수 제안을 내야 함',
+    },
+  ];
 
-  // 6단계: 등록된 기기만 허용되는지 판정기 자체를 검사
-  if (config.step >= 6) {
-    const { decide } = await import('./decider.mjs');
+  for (
+    const check
+    of virtualRuleChecks
+  ) {
+    if (
+      config.step
+      < check.minStep
+    ) {
+      continue;
+    }
 
-    const registeredRequest = {
-      ...decisionFixture,
-      requestId: randomUUID(),
-    };
-
-    const registeredDecision = await decide(registeredRequest);
-
-    const registeredAllowed =
-      registeredDecision?.schema === 'aleph.decision.v1'
-      && registeredDecision.requestId === registeredRequest.requestId
-      && registeredDecision.decision === 'allow'
-      && registeredDecision.reasonCode === 'approved'
-      && Array.isArray(registeredDecision.ruleIds)
-      && (
-        config.step >= 8
-          ? registeredDecision.ruleIds.includes('resource_zone')
-          : registeredDecision.ruleIds.includes('device_registered')
+    const checkUrl =
+      new URL(
+        `/api/device/status?view=rule-check&case=${encodeURIComponent(
+          check.attackId,
+        )}`,
+        app,
       );
 
-    results.push({
-      attackId: 'registered_device_allowed',
-      expected: '등록된 기기의 요청은 allow로 판정되어야 함',
-      observed: registeredAllowed
-        ? '등록된 기기의 요청이 allow로 판정됨'
-        : '등록된 기기의 요청이 예상한 형식과 결과로 판정되지 않음',
-    });
-
-    const unregisteredRequest = {
-      ...registeredRequest,
-      requestId: randomUUID(),
-      deviceRegistered: false,
-    };
-
-    const unregisteredDecision = await decide(unregisteredRequest);
-
-    const unregisteredDenied =
-      unregisteredDecision?.schema === 'aleph.decision.v1' &&
-      unregisteredDecision.requestId === unregisteredRequest.requestId &&
-      unregisteredDecision.decision === 'deny' &&
-      unregisteredDecision.reasonCode === 'device_not_registered' &&
-      Array.isArray(unregisteredDecision.ruleIds) &&
-      unregisteredDecision.ruleIds.includes('device_registered');
-
-    results.push({
-      attackId: 'unregistered_device_denied',
-      expected: '미등록 기기의 요청은 device_not_registered 사유로 거부되어야 함',
-      observed: unregisteredDenied
-        ? '미등록 기기의 요청이 device_not_registered 사유로 거부됨'
-        : '미등록 기기의 요청이 예상한 거부 결과로 판정되지 않음',
-    });
-  }
-
-  // 7단계: 복합 이상 접속과 재인증 값만으로 우회하는 시도를 가상 점검
-  if (config.step >= 7) {
-    const { decide } = await import('./decider.mjs');
-
-    const suspiciousRequest = {
-      ...decisionFixture,
-      requestId: randomUUID(),
-      stepUp: {
-        verified: false,
-        authAgeSeconds: null,
-      },
-      recentEvents: [
+    const response =
+      await evidenceFetch(
+        check.attackId,
+        checkUrl,
         {
-          kind: 'risk_signal',
-          ageSeconds: 60,
-          count: 20,
+          redirect:
+            'error',
+
+          signal:
+            timeout(),
         },
-      ],
-      signals: {
-        source: 'judge_fixture',
-        region: 'foreign',
-        network: 'unusual',
-        hour: 3,
+      );
+
+    let data =
+      null;
+
+    if (response.ok) {
+      try {
+        data =
+          await response.json();
+      } catch {
+        data =
+          null;
+      }
+    } else {
+      await response.body
+        ?.cancel();
+    }
+
+    const ready =
+      response.status === 200
+      && data?.case
+      === check.attackId
+      && data?.virtual === true
+      && data?.ready === true;
+
+    results.push({
+      attackId:
+        check.attackId,
+
+      expected:
+        check.expected,
+
+      observed:
+        response.status === 200
+          ? (
+            `HTTP 200; jsonReady=${ready
+              ? 'true'
+              : 'false'
+            }`
+          )
+          : `HTTP ${response.status}`,
+    });
+  }
+
+  /*
+ * 10단계:
+ * 실제 복원은 POST와 로그인 상태가 필요하므로 실행하지 않습니다.
+ * 대신 같은 복원 경로에 GET을 보내
+ * 쓰기 동작이 일어나지 않고 Method Not Allowed로 끝나는지 확인합니다.
+ */
+  const restoreResponse =
+    await evidenceFetch(
+      'restore_without_login',
+      new URL(
+        `/api/restore/${noteId}`,
+        app,
+      ),
+      {
+        redirect:
+          'error',
+
+        signal:
+          timeout(),
       },
-    };
+    );
 
-    const suspiciousDecision = await decide(suspiciousRequest);
+  results.push({
+    attackId:
+      'restore_without_login',
 
-    const suspiciousRequiresStepUp =
-      suspiciousDecision?.schema === 'aleph.decision.v1' &&
-      suspiciousDecision.requestId === suspiciousRequest.requestId &&
-      suspiciousDecision.decision === 'step_up' &&
-      suspiciousDecision.reasonCode === 'step_up_required' &&
-      Array.isArray(suspiciousDecision.ruleIds) &&
-      suspiciousDecision.ruleIds.includes('step_up_required');
+    expected:
+      '로그인 없는 GET 복구 경로가 복원을 수행하지 않고 거부되어야 함',
 
-    results.push({
-      attackId: 'composite_risk_requires_step_up',
-      expected: '이상 시간·낯선 네트워크·최근 대량 조회가 함께 발생하면 step_up이어야 함',
-      observed: suspiciousRequiresStepUp
-        ? '복합 이상 가상 요청이 step_up으로 판정됨'
-        : '복합 이상 가상 요청이 예상한 추가 확인 결과로 판정되지 않음',
-    });
+    observed:
+      `HTTP ${restoreResponse.status}`,
+  });
 
-    const claimedReverifiedRequest = {
-      ...suspiciousRequest,
-      requestId: randomUUID(),
-      stepUp: { verified: true, authAgeSeconds: 60 },
-    };
+  await restoreResponse.body
+    ?.cancel();
 
-    const reverifiedDecision = await decide(claimedReverifiedRequest);
+  const deviceStatusResponse =
+    await evidenceFetch(
+      'device_status_without_login',
+      new URL(
+        '/api/device/status',
+        app,
+      ),
+      {
+        redirect:
+          'error',
 
-    const allowedAfterStepUp =
-      reverifiedDecision?.schema === 'aleph.decision.v1' &&
-      reverifiedDecision.requestId === claimedReverifiedRequest.requestId &&
-      reverifiedDecision.decision === 'allow' &&
-      reverifiedDecision.reasonCode === 'approved';
+        signal:
+          timeout(),
+      },
+    );
 
-    results.push({
-      attackId: 'step_up_verified_allows_retry',
-      expected: '유효한 추가 확인 뒤 복합 이상 요청을 다시 판정하면 allow여야 함',
-      observed: allowedAfterStepUp
-        ? '유효한 추가 확인 뒤 요청이 allow로 판정됨'
-        : '추가 확인 뒤 요청이 예상한 allow 결과로 판정되지 않음',
-    });
-  }
+  results.push({
+    attackId:
+      'device_status_without_login',
 
-  // 8단계: 사용자·기기·메서드·정확한 자원 경로의 구역 판정 검사
-  if (config.step >= 8) {
-    const { decide } = await import('./decider.mjs');
+    expected:
+      '로그인과 유효한 기기 상태가 없는 요청은 보호된 기기 상태를 확인할 수 없어야 함',
 
-    const ownNoteRequest = {
-      ...decisionFixture,
-      requestId: randomUUID(),
-    };
+    observed:
+      `HTTP ${deviceStatusResponse.status}`,
+  });
 
-    const ownNoteDecision = await decide(ownNoteRequest);
-    const ownResourcesAllowed =
-      ownNoteDecision?.decision === 'allow'
-      && ownNoteDecision.reasonCode === 'approved'
-      && Array.isArray(ownNoteDecision.ruleIds)
-      && ownNoteDecision.ruleIds.includes('resource_zone');
+  await deviceStatusResponse.body
+    ?.cancel();
 
-    results.push({
-      attackId: 'own_resource_allowed',
-      expected: '본인 메모 단건은 resource_zone 규칙으로 허용되어야 함',
-      observed: ownResourcesAllowed
-        ? '본인 메모 단건이 allow로 판정됨'
-        : '본인 메모 단건이 예상대로 allow로 판정되지 않음',
-    });
+  const forgedDeviceResponse =
+    await evidenceFetch(
+      'device_status_forged_signal',
+      new URL(
+        '/api/device/status',
+        app,
+      ),
+      {
+        headers: {
+          'X-Aleph-Device-Timestamp':
+            new Date().toISOString(),
 
-    const listRouteRequest = {
-      ...decisionFixture,
-      requestId: randomUUID(),
-      path: '/notes',
-      route: 'GET /notes',
-    };
+          'X-Aleph-Device-Nonce':
+            '00000000-0000-4000-8000-000000000000',
 
-    const listRouteDecision = await decide(listRouteRequest);
+          'X-Aleph-Device-Signature':
+            'invalid',
+        },
 
-    const listRouteDenied =
-      listRouteDecision?.decision === 'deny'
-      && listRouteDecision.reasonCode === 'policy_denied'
-      && Array.isArray(listRouteDecision.ruleIds)
-      && listRouteDecision.ruleIds.includes('resource_zone');
+        redirect:
+          'error',
 
-    results.push({
-      attackId: 'note_list_route_denied',
-      expected: '판정기에서 메모 전체 목록 구역은 허용되지 않아야 함',
-      observed: listRouteDenied
-        ? '메모 전체 목록 경로가 policy_denied로 거부됨'
-        : '메모 전체 목록 경로가 예상대로 거부되지 않음',
-    });
+        signal:
+          timeout(),
+      },
+    );
 
-    const functionPathRequest = {
-      ...decisionFixture,
-      requestId: randomUUID(),
-      path: '/notes/export',
-      route: 'GET /notes/:id',
-    };
+  results.push({
+    attackId:
+      'device_status_forged_signal',
 
-    const functionPathDecision = await decide(functionPathRequest);
+    expected:
+      '위조한 기기 서명 정보만으로 보호된 기기 상태를 확인할 수 없어야 함',
 
-    const functionPathDenied =
-      functionPathDecision?.decision === 'deny'
-      && functionPathDecision.reasonCode === 'policy_denied'
-      && Array.isArray(functionPathDecision.ruleIds)
-      && functionPathDecision.ruleIds.includes('resource_zone');
+    observed:
+      `HTTP ${forgedDeviceResponse.status}`,
+  });
 
-    results.push({
-      attackId: 'unknown_resource_path_denied',
-      expected: ':id 위치에 export 같은 기능 이름을 넣은 알 수 없는 자원 경로는 거부되어야 함',
-      observed: functionPathDenied
-        ? '기능 이름을 자원 ID로 사용한 경로가 policy_denied로 거부됨'
-        : '알 수 없는 기능 경로가 예상대로 거부되지 않음',
-    });
+  await forgedDeviceResponse.body
+    ?.cancel();
 
-    const studentAnnouncementRequest = {
-      ...decisionFixture,
-      requestId: randomUUID(),
-      service: 'announcements',
-      method: 'PUT',
-      path: '/announcements/demo',
-      route: 'PUT /announcements/:id',
-    };
+  const operationsResponse =
+    await evidenceFetch(
+      'operations_record_api',
+      new URL(
+        '/api/device/status?view=operations-record',
+        app,
+      ),
+      {
+        redirect:
+          'error',
 
-    const studentAnnouncementDecision =
-      await decide(studentAnnouncementRequest);
+        signal:
+          timeout(),
+      },
+    );
 
-    const studentAnnouncementDenied =
-      studentAnnouncementDecision?.decision === 'deny'
-      && studentAnnouncementDecision.reasonCode === 'policy_denied'
-      && Array.isArray(studentAnnouncementDecision.ruleIds)
-      && studentAnnouncementDecision.ruleIds.includes('resource_zone');
+  results.push({
+    attackId:
+      'operations_record_api',
 
-    results.push({
-      attackId: 'student_announcement_update_denied',
-      expected: '강사 권한 연결이 없는 일반 학생의 공지 수정 요청은 거부되어야 함',
-      observed: studentAnnouncementDenied
-        ? '일반 학생의 공지 수정 요청이 policy_denied로 거부됨'
-        : '일반 학생의 공지 수정 요청이 예상대로 거부되지 않음',
-    });
-  }
+    expected:
+      '작전실 점검 기록 API가 GET 요청에 응답해야 함',
 
-  // 9단계: 가명 사용자별 다량 GET 조회 탐지와 회수 제안 자기점검
-  if (config.step >= 9) {
-    const { detect } = await import('./detect.mjs');
+    observed:
+      `HTTP ${operationsResponse.status}`,
+  });
 
-    const start = Date.UTC(2026, 9, 1, 0, 0, 0);
-
-    const detectionReads = (count, subject = 'learner_fixture') =>
-      Array.from({ length: count }, (_, index) => ({
-        at: new Date(start + index * 2 * 1000).toISOString(),
-        method: 'GET',
-        identity: { sub: subject },
-      }));
-
-    const normalDetection = detect(detectionReads(30));
-    const normalObserved =
-      normalDetection?.action === 'observe'
-      && Object.keys(normalDetection).length === 1;
-
-    results.push({
-      attackId: 'normal_read_observed',
-      expected: '정상적인 가상 조회는 회수 제안 없이 observe로 유지되어야 함',
-      observed: normalObserved
-        ? '정상 조회 30건이 observe로 유지됨'
-        : '정상 조회가 예상한 observe 결과로 유지되지 않음',
-    });
-
-    const boundaryDetection = detect(detectionReads(120));
-    const boundaryObserved =
-      boundaryDetection?.action === 'observe'
-      && Object.keys(boundaryDetection).length === 1;
-
-    results.push({
-      attackId: 'burst_read_boundary_observed',
-      expected: '10분 안의 GET 조회가 정확히 120건이면 회수 제안 대상이 아니어야 함',
-      observed: boundaryObserved
-        ? '정확히 120건의 조회가 observe로 유지됨'
-        : '정확히 120건의 조회가 예상과 다르게 회수 제안됨',
-    });
-
-    const burstDetection = detect(detectionReads(121));
-    const burstProposed =
-      burstDetection?.action === 'propose_revocation'
-      && burstDetection.reasonCode === 'burst_read'
-      && burstDetection.subject === 'learner_fixture'
-      && Object.keys(burstDetection).sort().join(',')
-      === 'action,reasonCode,subject';
-
-    results.push({
-      attackId: 'burst_read_revocation_proposed',
-      expected: '같은 가명 사용자의 10분 안 GET 조회가 120건을 넘으면 burst_read 회수 제안을 내야 함',
-      observed: burstProposed
-        ? '121건의 폭주 조회에 burst_read 회수 제안이 생성됨'
-        : '121건의 폭주 조회가 예상한 회수 제안 결과를 만들지 못함',
-    });
-  }
+  await operationsResponse.body
+    ?.cancel();
 
   return results;
 }
