@@ -51,8 +51,8 @@ const CHECK_META =
             check: 'empty_array',
         },
 
-        public_html_no_supabase_key: {
-            stage: 5,
+        public_root_available: {
+            stage: 1,
             kind: 'allow',
             area: 'app',
             check: 'http_200',

@@ -2234,3 +2234,12 @@ ALEPH 심판 판정
 | 41종 총공세 | ALEPH 심판 | 심판 실행 전에는 결과를 생성하거나 통과로 표시하지 않음 |
 
 실행하지 않은 쓰기 요청은 `미실행:`으로 기록하며 `blocked` 또는 `allowed`로 계산하지 않습니다. 작전실 확인표는 브라우저가 결과나 UUID를 새로 만들지 않고 서버가 제공한 동일한 `ops/ops-record.json`의 행을 표시합니다.
+
+
+### Stage 1 작전실 증적 보완
+
+- 작전실 표의 Stage 1은 `public_root_available` 점검으로 표시합니다.
+- 이 점검은 Production의 `GET /`를 실제로 호출해 HTTP 200을 확인하며, 같은 응답 HTML에 Supabase Publishable Key 또는 프로젝트 URL 할당이 노출되지 않았는지도 함께 검사합니다.
+- 제출 묶음 규격은 직접 점검을 최대 20개까지만 허용하므로, 기존 공개 HTML 점검을 Stage 1 공개 루트 증적으로 통합해 총 점검 수 20개를 유지합니다.
+- Stage 5의 원본 REST 직접 조회 차단은 `public_key_direct_rest_read`로 별도 유지합니다.
+- 기존 `ops/ops-record.json`은 과거 Production 실측 기록이므로 코드를 배포한 뒤 `npm run ops:record`로 다시 생성하기 전까지 임의 수정하지 않습니다.

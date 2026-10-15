@@ -233,7 +233,7 @@ export async function runAttackChecks(
   if (config.step >= 5) {
     const keyPageResponse =
       await evidenceFetch(
-        'public_html_no_supabase_key',
+        'public_root_available',
         new URL('/', app),
         {
           redirect: 'error',
@@ -271,9 +271,9 @@ export async function runAttackChecks(
 
     results.push({
       attackId:
-        'public_html_no_supabase_key',
+        'public_root_available',
       expected:
-        '공개 HTML에 Supabase 키 또는 프로젝트 URL 할당이 없어야 함',
+        '공개 루트가 HTTP 200으로 열리고 HTML에 Supabase 키 또는 프로젝트 URL 할당이 없어야 함',
       observed:
         `HTTP ${keyPageResponse.status}`,
     });
