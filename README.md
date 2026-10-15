@@ -1855,9 +1855,9 @@ POST /api/restore/:id
 확인 시각
 ```
 
-`점검 요청 ID`는 브라우저가 각각의 실측 실행을 구분하기 위해 생성하는 UUID입니다.
+`점검 요청 ID`는 `npm run ops:record`가 실제 Production GET 요청에 연결한 `alephEvidence.requestKey`입니다.
 
-이 값은 서버나 ALEPH SDP 엔진이 발급한 요청 ID를 의미하지 않습니다.
+브라우저 화면은 새 UUID를 만들지 않고 `ops/ops-record.json`의 서버 기록을 그대로 표시합니다.
 
 실제 API 호출을 수행하지 않은 항목은 다음과 같이 유지합니다.
 
@@ -2218,3 +2218,19 @@ ALEPH 심판 판정
 ## 12단계 최종 제출 기준
 
 12단계 제출 묶음은 Production 배포와 실측 검증이 완료된 clean `main`의 최종 일반 커밋을 기준으로 생성합니다.
+
+---
+
+## 12단계 증거 출처 구분 — 최신 구조
+
+이 절은 위의 초기 12단계 화면 설명보다 최신입니다.
+
+| 정보 | 출처 | 의미 |
+|---|---|---|
+| 판정 규칙 이름 | `src/decider.mjs`의 `RULE_IDS` | 구현된 학생 규칙 목록이며 실측 결과가 아님 |
+| 6~9단계 고정 점검 | `GET /api/device/status?view=rule-check&case=...` | 고정 가상 입력의 판정·탐지 결과이며 실제 사용자 사건이 아님 |
+| Production 점검 기록 | `ops/ops-record.json` | 실제 Production GET 결과와 동일한 requestKey·확인 시각 |
+| 로그인 사용자의 기기·백업 현황 | `GET /api/device/status?view=operations` | 현재 사용자 DB 상태를 서버가 조회한 결과 |
+| 41종 총공세 | ALEPH 심판 | 심판 실행 전에는 결과를 생성하거나 통과로 표시하지 않음 |
+
+실행하지 않은 쓰기 요청은 `미실행:`으로 기록하며 `blocked` 또는 `allowed`로 계산하지 않습니다. 작전실 확인표는 브라우저가 결과나 UUID를 새로 만들지 않고 서버가 제공한 동일한 `ops/ops-record.json`의 행을 표시합니다.

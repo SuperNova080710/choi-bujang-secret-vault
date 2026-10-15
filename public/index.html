@@ -719,16 +719,15 @@
             </div>
 
             <button id="verification-run-button" type="button">
-              안전한 요청 다시 확인
+              서버 기록 다시 불러오기
             </button>
           </div>
 
           <p class="verification-description">
-            실제로 실행한 요청만 결과를 기록합니다.
-            실행하지 않은 시험은 미실행으로 남기며
-            41종 총공세를 임의로 통과 처리하지 않습니다.
-            점검 요청 ID는 이 화면이 각 실측 실행을 구분하기 위해 생성하며,
-            서버 또는 ALEPH SDP 엔진의 요청 ID를 의미하지 않습니다.
+            이 표는 ops/ops-record.json에 저장된 Production GET 점검 기록만 표시합니다.
+            실행하지 않은 시험은 미실행으로 남기며 41종 총공세를 임의로 통과 처리하지 않습니다.
+            점검 요청 ID는 제출 점검이 실제 GET 요청에 연결한 alephEvidence requestKey이며,
+            브라우저가 새로 만들어낸 값이 아닙니다.
           </p>
 
           <div class="verification-table-wrap">
