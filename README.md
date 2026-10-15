@@ -2794,3 +2794,178 @@ git diff --check: 통과
 ALEPH XDR-05 심판 제출: 아직 안 함
 ALEPH XDR-05 심판 통과: 아직 확인 안 됨
 ```
+
+---
+
+## XDR-05 최종 결과 갱신 — 권한 상승 탐지
+
+앞선 XDR-05 기록의 심판 미제출 표기는 당시 저장점 상태입니다.
+
+ALEPH XDR-05 심판 최종 결과:
+
+```text
+100 / 100
+```
+
+---
+
+## XDR-06 현재 구현 상태 — 자료 빼돌리기를 잡아 냅니다
+
+XDR-06 `exfiltration` 모듈은 외부 전송 경보를 바탕으로 비정상적인 자료 유출을 분류하고, 명확한 경우 유출 목적지를 ZTNA 거부 규칙 후보로 연결합니다.
+
+입력 fixture:
+
+```
+xdr/fixtures/exfiltration.json
+```
+
+구현 파일:
+
+```
+xdr/exfiltration/read-alerts.mjs
+xdr/exfiltration/patterns.json
+xdr/exfiltration/decide.mjs
+xdr/exfiltration/respond.mjs
+xdr/exfiltration/result.json
+```
+
+### 경보 읽기
+
+`read-alerts.mjs`는 원본 경보를 변경하지 않고 다음 다섯 필드만 추출합니다.
+
+```
+timestamp
+sourceIp
+account
+ruleLevel
+description
+```
+
+검증 결과:
+
+```
+원본 경보: 30
+추출 결과: 30
+```
+
+### 자료 유출 패턴
+
+`patterns.json`에는 과제에서 요구한 두 패턴을 기록합니다.
+
+```
+large_transfer_to_unfamiliar_destination
+off_hours_archive_exfiltration
+```
+
+근거는 MITRE ATT&CK T1041 및 T1048입니다.
+
+- 처음 보는 목적지 또는 외부 주소로 대용량 자료 전송
+- 업무·수업 시간 밖 압축 파일 또는 자료 묶음 반출
+
+MITRE 기법 ID만으로 공격을 확정하지 않고 규칙 수준, 전송량, 파일 수, 반복 횟수, 설명에 나타난 전송 특징을 함께 판단합니다.
+
+### 판단 모듈
+
+`decide.mjs`는 외부 파일, 패키지, 네트워크를 사용하지 않고 `decide(alert)` 하나로 판단합니다.
+
+```
+confidence >= 0.85  -> block
+confidence >= 0.50  -> alert
+그 아래               -> record
+```
+
+현재 fixture 분류:
+
+```
+ex-01 ~ ex-10  -> block
+ex-11 ~ ex-20  -> alert
+ex-21 ~ ex-30  -> record
+```
+
+최종 실행 결과:
+
+```
+block: 10
+alert: 10
+record: 10
+total: 30
+```
+
+정상 이벤트 block:
+
+```
+0
+```
+
+특히 `ex-23`은 MITRE T1048이 포함되어 있지만 수업 자료 주소로 수행된 20KB 수준의 정상 동기화이므로 `record`로 분류됩니다.
+
+### 대응 모듈
+
+`respond.mjs`는 `block` 결과만 임시 ZTNA 거부 규칙 후보로 만듭니다.
+
+이번 과제의 차단 대상은 사용자 계정이나 출발지가 아니라 **유출 목적지**입니다.
+
+거부 규칙 후보:
+
+```
+sourceAlertId
+destinationIp
+expiresAt
+reason
+```
+
+생성 시각으로부터 5분 뒤를 만료 시각으로 사용합니다.
+
+```
+block  -> block_candidate
+alert  -> alert_only
+record -> record_only
+```
+
+임시 로그를 이용한 대응 검증 결과:
+
+```
+전체 경보: 30
+차단 후보: 10
+비차단 이벤트의 잘못된 거부 규칙: 0
+로그 기록: 30
+```
+
+`ex-01 ~ ex-10`의 목적지만 차단 후보가 생성됐으며 정상 이벤트에는 deny 후보가 생성되지 않았습니다.
+
+기존 ZTNA 판정기 `src/decider.mjs`의 규칙은 수정하지 않았습니다.
+
+### XDR-06 재현 방법
+
+```
+node xdr/exfiltration/read-alerts.mjs
+node --check xdr/exfiltration/decide.mjs
+node --check xdr/exfiltration/respond.mjs
+npm run xdr:run -- exfiltration
+```
+
+`npm run xdr:run -- exfiltration`은 `xdr/exfiltration/result.json`을 갱신합니다.
+
+`respond.mjs`의 실제 로그 기능은 반복 실행 시 `xdr/alerts.log`에 시험 경보가 중복될 수 있으므로 제출 직전에는 불필요하게 반복 실행하지 않습니다.
+
+### XDR-06 현재 검증 상태
+
+```
+경보 읽기 30/30: 통과
+patterns.json 근거 필드: 확인
+decide.mjs import 없음: 확인
+decide(alert) 단일 export: 확인
+명확한 공격 block: 확인
+애매한 사건 alert: 확인
+정상 사건 record: 확인
+block 10 / alert 10 / record 10: 확인
+정상 이벤트 block 0: 확인
+respond 임시 deny 후보 10건: 확인
+비차단 이벤트 잘못된 deny 후보 0건: 확인
+목적지 IP 기반 deny 후보: 확인
+기존 ZTNA 판정기 파일 미수정: 확인
+node --check: 통과
+git diff --check: 통과
+ALEPH XDR-06 심판 제출: 아직 안 함
+ALEPH XDR-06 심판 통과: 아직 확인 안 됨
+```
