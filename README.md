@@ -2243,3 +2243,209 @@ ALEPH 심판 판정
 - 제출 묶음 규격은 직접 점검을 최대 20개까지만 허용하므로, 기존 공개 HTML 점검을 Stage 1 공개 루트 증적으로 통합해 총 점검 수 20개를 유지합니다.
 - Stage 5의 원본 REST 직접 조회 차단은 `public_key_direct_rest_read`로 별도 유지합니다.
 - 기존 `ops/ops-record.json`은 과거 Production 실측 기록이므로 코드를 배포한 뒤 `npm run ops:record`로 다시 생성하기 전까지 임의 수정하지 않습니다.
+
+
+---
+
+## 12단계 최종 결과
+
+12단계 「탈환 작전실을 완성합니다」는 최종 제출에서 ALEPH 심판 **100점으로 통과**했습니다.
+
+최종 통과 직전 저장점:
+
+```text
+f7888b7 12단계 Stage 2 observed 정합성 수정 (#62)
+```
+
+최종 제출에서는 `anonymous_static_note_read`의 제출용 `observed`를 심판이 직접 확인할 수 있는 HTTP 상태만 기록하도록 정리했습니다.
+
+```
+HTTP 200
+```
+
+공개 `/data.json`의 `notes` 배열이 비어 있는지에 대한 검증 자체는 내부 실측 증거로 유지하여 작전실 집계와 제출 기록의 역할을 분리했습니다.
+
+최종 상태:
+
+```
+Stage 12 ALEPH 심판: 100점 통과
+```
+
+---
+
+## 보너스 XDR-03 — 알려진 취약점 악용 탐지
+
+모듈 키:
+
+```
+known-cve
+```
+
+시험 경보:
+
+```
+xdr/fixtures/known-cve.json
+```
+
+구현 파일:
+
+```
+xdr/known-cve/read-alerts.mjs
+xdr/known-cve/patterns.json
+xdr/known-cve/decide.mjs
+xdr/known-cve/respond.mjs
+xdr/known-cve/result.json
+```
+
+### 경보 읽기
+
+`read-alerts.mjs`는 원본 Wazuh 모양 경보에서 다음 항목만 추출합니다.
+
+```
+timestamp
+sourceIp
+account
+ruleLevel
+description
+```
+
+URL, user-agent, 원본 data 전체 등 불필요한 값은 출력하지 않습니다.
+
+확인 결과:
+
+```
+원본 경보 24건
+추출 결과 24건
+```
+
+### 알려진 취약점 패턴
+
+`patterns.json`에는 CVE-2021-44228 및 MITRE ATT&CK T1190 근거에 따라 다음 세 패턴만 정의했습니다.
+
+```
+jndi_remote_lookup_header
+jndi_remote_lookup_argument
+known_cve_probe_trace
+```
+
+완전한 JNDI 원격 조회 형태는 명확한 악용 신호로 보고, CVE/T1190 관련 점검 흔적만 존재하는 경우에는 보조 신호로 사용합니다.
+
+### 판단 모듈
+
+`decide.mjs`는 다른 파일이나 패키지를 import하지 않고 단독으로 판단합니다.
+
+반환 형식:
+
+```
+{
+  action: 'block' | 'alert' | 'record',
+  confidence,
+  reason
+}
+```
+
+판단 기준:
+
+```
+명확한 JNDI 원격 조회 형태
+→ block
+→ confidence 0.98~0.99
+
+CVE-2021-44228 / T1190 문맥의 애매한 점검 흔적
+→ alert
+→ confidence 0.65
+
+알려진 취약점 악용 근거 없음
+→ record
+→ confidence 0.1
+```
+
+특정 경보 ID를 하드코딩하지 않고 경보 내용과 패턴 자체를 기준으로 판단합니다.
+
+### 대응 연결
+
+`respond.mjs`는 `block` 결과에 대해서만 임시 거부 규칙 후보를 생성합니다.
+
+규칙에는 다음 정보를 기록합니다.
+
+```
+effect
+sourceIp
+sourceAlertId
+expiresAt
+reason
+```
+
+`alert`는 알림만 남기고, `record`는 기록만 남깁니다.
+
+기존 ZTNA 판정기 규칙 파일인 `src/decider.mjs`는 수정하지 않습니다.
+
+대응 로그:
+
+```
+xdr/alerts.log
+```
+
+### 시험 경보 실행 결과
+
+실행 명령:
+
+```
+npm run xdr:run -- known-cve
+```
+
+최종 분류:
+
+```
+block: 8
+alert: 7
+record: 9
+total: 24
+```
+
+정상 이벤트:
+
+```
+kc-17 ~ kc-24
+```
+
+확인 결과:
+
+```
+정상 이벤트 block: 0
+```
+
+`kc-12`는 중괄호가 한 번 등장하지만 JNDI 원격 조회 구문이나 명확한 알려진 취약점 악용 신호가 없어 `record`로 유지했습니다.
+
+### XDR-03 재현 방법
+
+```
+node xdr/known-cve/read-alerts.mjs
+node --check xdr/known-cve/decide.mjs
+node --check xdr/known-cve/respond.mjs
+npm run xdr:run -- known-cve
+node xdr/known-cve/respond.mjs
+```
+
+`npm run xdr:run -- known-cve`는 `xdr/known-cve/result.json`을 갱신합니다.
+
+`node xdr/known-cve/respond.mjs`는 대응 결과를 `xdr/alerts.log`에 추가하므로 제출 직전 반복 실행하여 동일 경보를 중복 기록하지 않습니다.
+
+### 현재 검증 상태
+
+```
+경보 읽기 24/24: 통과
+patterns.json 근거 필드: 확인
+decide.mjs import 없음: 확인
+명확한 공격 block: 확인
+애매한 사건 alert: 확인
+정상 사건 record: 확인
+block 8 / alert 7 / record 9: 확인
+정상 이벤트 block 0: 확인
+respond 임시 deny 후보 8건: 확인
+기존 ZTNA 판정기 파일 미수정: 확인
+node --check: 통과
+git diff --check: 통과
+ALEPH XDR-03 심판 제출: 아직 안 함
+ALEPH XDR-03 심판 통과: 아직 확인 안 됨
+```
