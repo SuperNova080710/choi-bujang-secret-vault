@@ -52,7 +52,9 @@ export function createStudentView() {
         } else if (resource?.status === 'ok') {
           renderData(group, resource.data);
         } else if (resource?.status === 'error') {
-          appendText(group, '연결 실패: 확인 불가');
+          // 서버 오류는 전달된 메시지를 표시하고, 이전 신원 데이터는 재사용하지 않습니다.
+          const detail = knownValue(resource?.error?.message);
+          appendText(group, '연결 실패: ' + detail);
         } else {
           appendText(group, '확인 불가');
         }
