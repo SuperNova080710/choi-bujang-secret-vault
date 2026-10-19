@@ -20,6 +20,12 @@ export function createStudentView() {
         revoked: '철회됨',
         unknown: '확인 불가',
       };
+      // 사용자에게 읽기 쉬운 설명과 서버에서 받은 원래 상태 코드를 함께 표시합니다.
+      const describeStatus = (status, labels) => {
+        if (typeof status !== 'string' || !status.trim()) return '확인 불가';
+        const label = Object.hasOwn(labels, status) ? labels[status] : '확인 불가';
+        return `${label}(${status})`;
+      };
       const modeStatus = {
         demo: '예제 자료',
         disconnected: '연결 없음',
@@ -67,10 +73,10 @@ export function createStudentView() {
         appendField(group, '현재 기기', data?.device?.label);
         appendField(group, '기기 ID', data?.device?.id);
         appendField(group, '기기 보안 상태',
-          deviceStatus[data?.device?.status] || '확인 불가');
+          describeStatus(data?.device?.status, deviceStatus));
         appendField(group, '현재 세션 ID', data?.session?.id);
         appendField(group, '현재 세션 상태',
-          sessionStatus[data?.session?.status] || '확인 불가');
+          describeStatus(data?.session?.status, sessionStatus));
       });
 
       appendGroup('등록 기기 목록', devices, (group, data) => {
@@ -86,7 +92,7 @@ export function createStudentView() {
           appendField(item, '기기', device?.label);
           appendField(item, '기기 ID', device?.id);
           appendField(item, '보안 상태',
-            deviceStatus[device?.status] || '확인 불가');
+            describeStatus(device?.status, deviceStatus));
           group.append(item);
         }
       });
@@ -103,7 +109,7 @@ export function createStudentView() {
           const item = document.createElement('div');
           appendField(item, '세션 ID', session?.id);
           appendField(item, '세션 상태',
-            sessionStatus[session?.status] || '확인 불가');
+            describeStatus(session?.status, sessionStatus));
           group.append(item);
         }
       });
