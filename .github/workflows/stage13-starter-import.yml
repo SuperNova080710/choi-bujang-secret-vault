@@ -1,0 +1,58 @@
+name: Import verified ALEKOV 13 starter (one-time)
+on:
+  push:
+    branches:
+      - stage13/issue-69-starter-compatibility
+permissions:
+  contents: write
+jobs:
+  import-starter:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Download verified starter and add isolated on-client
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib, io, os, pathlib, stat, urllib.request, zipfile
+
+          url = 'https://aleph-workbench-downloads.vercel.app/alekov-starter-0.2.11.zip'
+          expected = 'd57005384b36bd87bf7ad59926d11c3fc3054dc8574ccd9d788db47923477266'
+          with urllib.request.urlopen(url, timeout=40) as response:
+              archive = response.read(5 * 1024 * 1024)
+          if hashlib.sha256(archive).hexdigest() != expected:
+              raise SystemExit('ZIP digest mismatch; repository unchanged')
+          root = pathlib.Path('on-client')
+          if root.exists() or root.is_symlink():
+              raise SystemExit('on-client already exists; refusing overwrite')
+          items = []
+          with zipfile.ZipFile(io.BytesIO(archive)) as z:
+              for info in z.infolist():
+                  parts = pathlib.PurePosixPath(info.filename).parts
+                  if not parts or parts[0] != 'on-client' or '..' in parts or info.is_dir():
+                      raise SystemExit('Unexpected ZIP entry; refusing import')
+                  if stat.S_ISLNK(info.external_attr >> 16):
+                      raise SystemExit('ZIP symlink rejected')
+                  if len(parts) < 2:
+                      raise SystemExit('Unexpected path depth')
+                  items.append((info, pathlib.Path(*parts)))
+              for info, dest in items:
+                  dest.parent.mkdir(parents=True, exist_ok=True)
+                  dest.write_bytes(z.read(info))
+          print('Imported', len(items), 'verified official starter files into on-client/')
+          PY
+      - name: Commit verified starter files
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- on-client/
+          if git diff --cached --quiet; then
+            echo 'No new starter files'
+            exit 0
+          fi
+          git commit -m 'Issue #69 공식 13단계 시작 틀 추가 (기존 방어전 보존)'
+          git push origin HEAD:stage13/issue-69-starter-compatibility
