@@ -550,8 +550,153 @@ export function createStudentView() {
       return root;
     },
     renderVulnerabilities() { return '학생 구현 대기: 정확한 설치 버전·OSV 출처·조회 시각·부분 결과·조회 실패를 구분하세요.'; },
-    renderAiConnection() { return '학생 구현 대기: 모델 응답 점검과 실제 사건 설명을 구분하고 AI 오류·취소·수동 복구를 안내하세요.'; },
-    renderExplanation() { return '학생 구현 대기: 선택한 사건의 근거·규칙·현재 상태와 AI 설명을 연결하세요. 제안은 자동 실행하지 않습니다.'; },
+    renderAiConnection({ status, mode, data, error, checkedAt, explanationAccepted } = {}) {
+      // 제공 서버가 넘긴 현 시점의 점검 결과만 표시합니다. 요청·재시도·자격 관리는 제공 화면의 책임입니다.
+      const root = document.createElement('section');
+      root.setAttribute('aria-label', 'AI 연결 점검 상태');
+      const make = (tag, value) => {
+        const node = document.createElement(tag);
+        if (value !== undefined) node.textContent = String(value);
+        return node;
+      };
+      const paragraph = (value) => root.append(make('p', value));
+      const field = (label, value) => {
+        const line = make('p');
+        line.append(make('strong', label + ': '), make('span', value));
+        root.append(line);
+      };
+      const modes = {
+        connected: '연결됨(connected)',
+        demo: '예제 자료(demo) · 실제 AI 연결 확인 아님',
+        disconnected: '연결 없음(disconnected)',
+        unknown: '확인 불가(unknown)',
+      };
+      field('자료 모드', Object.hasOwn(modes, mode) ? modes[mode] : modes.unknown);
+
+      // 공식 앱에서 안전하게 정규화해 넘기는 코드만 분류합니다.
+      const guidance = {
+        ON_AI_PROVISIONING_PENDING: '앱 이용 권한이 준비 중이거나 확인되지 않았습니다. 담당자에게 계정 연결과 앱 권한을 확인 요청하세요.',
+        ON_AI_AUTHORIZATION_CHANGED: '점검 중 이용 권한이 변경됐습니다. 담당자에게 현재 권한을 확인 요청하세요.',
+        SUBJECT_SCOPE_UNVERIFIED: '현재 계정과 프로젝트의 연결을 확인할 수 없습니다. 담당자에게 확인 요청하세요.',
+        WB_CLCO_AUTH_REQUIRED: '앱 인증에 실패했습니다. 계정 연결과 앱 승인을 다시 확인하고 담당자에게 문의하세요.',
+        WB_CLCO_ACCESS_BLOCKED: '앱 접근이 제한됐습니다. 담당자에게 이용 권한을 확인 요청하세요.',
+        WB_CLCO_COHORT_BUDGET_EXHAUSTED: '반의 AI 사용량이 소진됐습니다. 담당자에게 한도를 확인 요청하세요.',
+        WB_CLCO_LIMIT_REACHED: 'AI 이용 한도에 도달했습니다. 담당자에게 확인 요청하세요.',
+        WB_CLCO_SESSION_CLOSED: '현재 AI 이용 시간이 아닙니다. 이용 가능 시간을 확인하세요.',
+        WB_CLCO_RATE_LIMITED: '요청이 일시적으로 제한됐습니다. 잠시 뒤 버튼을 직접 눌러 다시 점검하세요.',
+        WB_CLCO_TIMEOUT: 'AI 응답 시간이 초과됐습니다. 잠시 뒤 직접 다시 점검하세요.',
+        REQUEST_TIMEOUT: '서버 AI 요청 시간이 초과됐습니다. 잠시 뒤 직접 다시 점검하세요.',
+        ENGINE_TIMEOUT: '서버 확인 시간이 초과됐습니다. 잠시 뒤 직접 다시 점검하세요.',
+        TIMEOUT: '요청 시간이 초과됐습니다. 잠시 뒤 직접 다시 점검하세요.',
+        WB_CLCO_NETWORK_ERROR: 'AI 네트워크 연결에 실패했습니다. 연결 상태를 확인하고 직접 다시 점검하세요.',
+        WB_CLCO_SERVER_UNAVAILABLE: 'AI 서버에 연결할 수 없습니다. 잠시 뒤 직접 다시 점검하세요.',
+        WB_CLCO_CANCELLED: '점검이 취소됐습니다. 이전 결과는 현재 점검 결과가 아닙니다.',
+        CANCELLED: '점검이 취소됐습니다. 이전 결과는 현재 점검 결과가 아닙니다.',
+        REQUEST_CANCELLED: '점검이 취소됐습니다. 이전 결과는 현재 점검 결과가 아닙니다.',
+        ON_AI_MODEL_LIST_EMPTY: '현재 앱에서 사용할 수 있는 모델이 없습니다. 담당자에게 모델 허용 설정을 확인 요청하세요.',
+        MODEL_NOT_CONFIGURED: '사용할 모델이 설정되지 않았습니다. 담당자에게 모델 허용 설정을 확인 요청하세요.',
+        WB_CLCO_INVALID_RESPONSE: '게이트 응답을 확인할 수 없습니다. 담당자에게 게이트 버전과 앱 권한을 확인 요청하세요.',
+        ON_AI_INVALID_INPUT: 'AI 요청의 입력을 확인할 수 없습니다. 담당자에게 확인 요청하세요.',
+        ON_AI_INVALID_OUTPUT: 'AI 응답을 확인할 수 없습니다. 담당자에게 확인 요청하세요.',
+        AI_REQUEST_UNVERIFIED: 'AI 연결 또는 응답을 확인할 수 없습니다. 담당자에게 계정 연결과 앱 권한을 확인 요청하세요.',
+      };
+      const secretPattern = /(?:Bearer\s+\S+|sk-(?:proj-|ant-|svcacct-)?[A-Za-z0-9_-]{8,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|(?:api[_ -]?key|authorization|password|비밀번호|토큰)\s*[:=]\s*\S+)/i;
+      const safeMessage = (value) =>
+        typeof value === 'string' && value.trim() && value.length <= 400
+        && !secretPattern.test(value) && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(value)
+          ? value : '오류 상세 정보 확인 불가';
+
+      if (status === 'idle') {
+        paragraph('AI 연결 점검 전입니다.');
+      } else if (status === 'loading') {
+        paragraph('AI 연결 점검 중입니다.');
+      } else if (status === 'error') {
+        const code = typeof error?.code === 'string' && Object.hasOwn(guidance, error.code)
+          ? error.code : 'AI_REQUEST_UNVERIFIED';
+        paragraph('AI 연결 점검 실패');
+        field('오류 코드', code);
+        field('오류 메시지', safeMessage(error?.message));
+        paragraph(guidance[code]);
+      } else if (status === 'ok') {
+        if (data?.transportChecked !== true
+          || !['test', 'verified'].includes(data?.audienceAuthorization)
+          || !Number.isInteger(data?.modelCount) || data.modelCount < 0
+          || typeof checkedAt !== 'string' || !Number.isFinite(Date.parse(checkedAt))) {
+          paragraph('AI 연결 점검 결과를 확인할 수 없습니다. 담당자에게 응답 계약을 확인 요청하세요.');
+        } else {
+          paragraph(data.audienceAuthorization === 'test'
+            ? '시험 연결 점검(test) · 실제 앱 권한 확인 아님'
+            : '앱 권한 확인 후 점검(verified) · 해당 점검 시각 기준');
+          field('모델 수', data.modelCount);
+          field('점검 시각', checkedAt);
+          paragraph('이 결과는 AI 연결과 모델 목록만 점검한 것입니다. 사건 설명은 아직 실행하지 않았습니다.');
+          // explanationAccepted 값으로 성공을 유추하지 않습니다. 사건 설명은 보안 기록에서만 확인합니다.
+          void explanationAccepted;
+        }
+      } else {
+        paragraph('AI 연결 점검 상태를 확인할 수 없습니다.');
+      }
+      paragraph('자동으로 다시 점검하지 않습니다. 필요한 경우 「현재 API 연결 점검」 버튼을 직접 누르세요.');
+      return root;
+    },
+    renderExplanation({ event, explanation, checkedAt } = {}) {
+      // 17단계 기초 표시: 제공된 사건 설명 실행 결과만 표시하고 새 AI 호출·조치는 수행하지 않습니다.
+      const root = document.createElement('section');
+      root.setAttribute('aria-label', '선택한 보안 사건의 AI 설명');
+      const make = (tag, value) => {
+        const node = document.createElement(tag);
+        if (value !== undefined) node.textContent = String(value);
+        return node;
+      };
+      const paragraph = (value) => root.append(make('p', value));
+      const field = (label, value) => {
+        const line = make('p');
+        line.append(make('strong', label + ': '), make('span', value));
+        root.append(line);
+      };
+      const validId = (value) =>
+        typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$/.test(value);
+      const secretPattern = /(?:Bearer\s+\S+|sk-(?:proj-|ant-|svcacct-)?[A-Za-z0-9_-]{8,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|(?:api[_ -]?key|authorization|password|비밀번호|토큰)\s*[:=]\s*\S+)/i;
+      const safeMessage = (value) =>
+        typeof value === 'string' && value.trim() && value.length <= 400
+        && !secretPattern.test(value) && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(value)
+          ? value : '오류 상세 정보 확인 불가';
+
+      if (!event) {
+        paragraph('보안 기록에서 사건을 먼저 선택하세요.');
+      } else if (explanation?.status === 'loading') {
+        paragraph('AI 사건 설명 요청 중입니다.');
+      } else if (explanation?.status === 'idle' || !explanation) {
+        paragraph('선택한 사건의 AI 설명은 아직 요청하지 않았습니다.');
+      } else if (explanation.status === 'ok') {
+        const summary = explanation.data?.summary;
+        if (!validId(event.id) || typeof summary !== 'string'
+          || !summary.trim() || summary.length > 1500 || secretPattern.test(summary)) {
+          paragraph('AI 사건 설명 결과를 확인할 수 없습니다. 사건 ID 또는 요약 형식이 올바르지 않습니다.');
+          paragraph('기존 보안 기록은 그대로입니다.');
+        } else {
+          root.setAttribute('data-student-explanation-event', event.id);
+          paragraph('AI 설명(참고용) · 실제 조치 실행 결과가 아닙니다.');
+          field('사건 ID', event.id);
+          field('AI 요약', summary);
+          if (typeof checkedAt === 'string' && Number.isFinite(Date.parse(checkedAt))) {
+            field('설명 확인 시각', checkedAt);
+          }
+        }
+      } else if (explanation.status === 'error') {
+        const code = typeof explanation.error?.code === 'string'
+          && /^[A-Z][A-Z0-9_]{0,79}$/.test(explanation.error.code)
+          ? explanation.error.code : 'AI_REQUEST_UNVERIFIED';
+        paragraph('AI 사건 설명 실패');
+        field('오류 코드', code);
+        field('오류 메시지', safeMessage(explanation.error?.message));
+        paragraph('기존 보안 기록은 그대로입니다. 설명 실패는 기존 판정이나 기록을 변경하지 않습니다.');
+      } else {
+        paragraph('AI 사건 설명 상태를 확인할 수 없습니다.');
+        paragraph('기존 보안 기록은 그대로입니다.');
+      }
+      return root;
+    },
     renderAction() { return '학생 구현 대기: 현재 사건·조치·실제 대상·사람 확인·ACK와 원천 효과·unknown을 구분하세요.'; },
   };
 }
