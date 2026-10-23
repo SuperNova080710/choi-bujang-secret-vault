@@ -1,0 +1,203 @@
+{
+  "commit": "13f4cda789098950e291fc39604ea8f561da965e",
+  "startedAt": "2026-10-23T06:19:40.373842+00:00",
+  "environment": "Linux; Node 24.19.0; npm 11.9.0; Git 2.51.1",
+  "checks": [
+    {
+      "mode": "default",
+      "at": "2026-10-23T06:19:40.894853+00:00",
+      "http": [
+        {
+          "path": "/",
+          "http": 200
+        },
+        {
+          "path": "/student/extension.mjs",
+          "http": 200
+        },
+        {
+          "path": "/api/me",
+          "http": 503,
+          "error": "ENGINE_NOT_CONNECTED",
+          "status": null,
+          "count": null
+        },
+        {
+          "path": "/api/apps",
+          "http": 503,
+          "error": "ENGINE_NOT_CONNECTED",
+          "status": null,
+          "count": null
+        },
+        {
+          "path": "/api/events",
+          "http": 503,
+          "error": "ENGINE_NOT_CONNECTED",
+          "status": null,
+          "count": null
+        },
+        {
+          "path": "/api/devices",
+          "http": 503,
+          "error": "ENGINE_NOT_CONNECTED",
+          "status": null,
+          "count": null
+        },
+        {
+          "path": "/api/sessions",
+          "http": 503,
+          "error": "ENGINE_NOT_CONNECTED",
+          "status": null,
+          "count": null
+        },
+        {
+          "path": "/api/diagnostics",
+          "http": 200,
+          "error": null,
+          "status": null,
+          "count": null
+        },
+        {
+          "path": "/api/vulnerabilities",
+          "http": 200,
+          "error": null,
+          "status": "not_configured",
+          "count": null
+        }
+      ],
+      "startSignal": "케셰브 연결 확인: http://127.0.0.1:5189",
+      "stopped": true
+    },
+    {
+      "mode": "demo",
+      "at": "2026-10-23T06:19:41.430103+00:00",
+      "http": [
+        {
+          "path": "/",
+          "http": 200
+        },
+        {
+          "path": "/student/extension.mjs",
+          "http": 200
+        },
+        {
+          "path": "/api/me",
+          "http": 200,
+          "error": null,
+          "status": null,
+          "count": null
+        },
+        {
+          "path": "/api/apps",
+          "http": 200,
+          "error": null,
+          "status": null,
+          "count": 3
+        },
+        {
+          "path": "/api/events",
+          "http": 200,
+          "error": null,
+          "status": null,
+          "count": 1
+        },
+        {
+          "path": "/api/devices",
+          "http": 200,
+          "error": null,
+          "status": null,
+          "count": 1
+        },
+        {
+          "path": "/api/sessions",
+          "http": 200,
+          "error": null,
+          "status": null,
+          "count": 1
+        },
+        {
+          "path": "/api/diagnostics",
+          "http": 200,
+          "error": null,
+          "status": null,
+          "count": null
+        },
+        {
+          "path": "/api/vulnerabilities",
+          "http": 200,
+          "error": null,
+          "status": "not_configured",
+          "count": null
+        }
+      ],
+      "startSignal": "케셰브 예제: http://127.0.0.1:5189",
+      "stopped": true
+    },
+    {
+      "mode": "demo",
+      "at": "2026-10-23T06:19:41.969562+00:00",
+      "http": [
+        {
+          "path": "/",
+          "http": 200
+        },
+        {
+          "path": "/student/extension.mjs",
+          "http": 200
+        },
+        {
+          "path": "/api/me",
+          "http": 200,
+          "error": null,
+          "status": null,
+          "count": null
+        },
+        {
+          "path": "/api/apps",
+          "http": 200,
+          "error": null,
+          "status": null,
+          "count": 3
+        },
+        {
+          "path": "/api/events",
+          "http": 200,
+          "error": null,
+          "status": null,
+          "count": 1
+        },
+        {
+          "path": "/api/devices",
+          "http": 200,
+          "error": null,
+          "status": null,
+          "count": 1
+        },
+        {
+          "path": "/api/sessions",
+          "http": 200,
+          "error": null,
+          "status": null,
+          "count": 1
+        },
+        {
+          "path": "/api/diagnostics",
+          "http": 200,
+          "error": null,
+          "status": null,
+          "count": null
+        },
+        {
+          "path": "/api/vulnerabilities",
+          "http": 200,
+          "error": null,
+          "status": "not_configured",
+          "count": null
+        }
+      ],
+      "startSignal": "케셰브 예제: http://127.0.0.1:5189",
+      "stopped": true
+    }
+  ],
+  "endedAt": "2026-10-23T06:19:42.097559+00:00"
+}
