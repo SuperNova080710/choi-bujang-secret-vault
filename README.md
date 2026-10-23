@@ -1,3 +1,15 @@
+<!-- STUDENT_HISTORY_START -->
+## 0~22단계 작업 이력과 현재 상태
+
+사용자는 **22단계까지 전체 통과**했다고 보고했습니다. 최종 인수인계 PR #121은 main에 병합됐습니다. 과제 완료와 실제 운영 검증은 구분하며, 아래에 보존한 이전 문서의 제출 후보·대기 표현은 작성 당시의 기록입니다.
+
+- [처음 보는 사람을 위한 0~22단계 작업 이력](docs/STAGE_HISTORY.md): 단계별 목적·변경·근거·확인 범위
+- [학생 실행 설명서](docs/STUDENT_RUNBOOK.md) · [최종 인수인계와 백업·복원](docs/STUDENT_HANDOVER.md)
+- 운영 미확인: [실제 AI 연결 #89](https://github.com/SuperNova080710/choi-bujang-secret-vault/issues/89), [본인 PC 재현·SDP/OSV·실집행·데이터 복원 #123](https://github.com/SuperNova080710/choi-bujang-secret-vault/issues/123)
+
+0단계는 사용자 확인 결과 기록이 없습니다. 실제 AI 성공 및 본인 PC 최종 재현은 추가 확인하지 않았습니다. 과제 통과를 운영 인증이나 v1.0 인증으로 표현하지 않습니다.
+<!-- STUDENT_HISTORY_END -->
+
 <!-- STUDENT_STAGE22_START -->
 ## 22단계 · 재현 가능한 최종 인수인계
 
