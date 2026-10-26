@@ -59,3 +59,44 @@ test('invalid metric values remain unknown, older observations rejected',async()
  await click(root,'다시 조회');assert.match(status(root),/6개 항목 확인 불가/);
  await click(root,'다시 조회');assert.match(status(root),/오래된 결과/);assert.equal(history(root).children.length,1);
 });
+
+const officialFixture = {
+ schema:'aleph.on.pc-status.v1', source:'local-pc', measuredAt:'2026-10-26T06:00:00Z', metrics:{
+  cpu:{state:'ok',usagePercent:20,sampleMs:200}, memory:{state:'ok',usedBytes:20,totalBytes:100},
+  disk:{state:'ok',freeBytes:50,totalBytes:100}, network:{state:'ok',interfaceCount:2,ipv4Count:3},
+  firewall:{state:'ok',profiles:[{name:'Domain',enabled:true},{name:'Private',enabled:false},{name:'Public',enabled:true}]},
+  events:{state:'ok',warningCount:2,errorCount:1,truncated:false,sampleLimit:5000,since:'2026-10-25T06:00:00Z'}
+ }
+};
+test('official API is manual, uses six exact metrics and no unsupported stylesheet or legacy fetch',async()=>{
+ const paths=[];const root=createPcObservationView({api:{get:async path=>{paths.push(path);return {ok:true,data:structuredClone(officialFixture)}}},request:()=>{throw Error('legacy fetch forbidden')}});
+ assert.deepEqual(paths,[]);assert.equal(nodes(root).filter(n=>n.tag==='link').length,0);
+ await click(root,'다시 조회');await click(root,'다시 조회');
+ assert.deepEqual(paths,['/api/pc/status','/api/pc/status']);assert.match(status(root),/6개 항목/);
+ assert.match(root.textContent,/200ms/);assert.match(root.textContent,/앱 위치 디스크/);assert.match(root.textContent,/합산/);assert.match(root.textContent,/5,000건/);assert.match(root.textContent,/링크 Up 수 아님/);assert.match(root.textContent,/직전 조회 대비/);
+ assert.doesNotMatch(root.textContent,/500ms|10,000|시스템 디스크/);
+ const filter=nodes(root).find(n=>n.tag==='select');filter.value='security';filter.listeners.change();assert.doesNotMatch(history(root).textContent,/CPU 사용률/);
+ click(root,'조회 기록 지우기');assert.equal(history(root).children.length,0);
+});
+test('official unavailable/malformed metrics stay unknown and extra response data never appears',async()=>{
+ const data=structuredClone(officialFixture);data.metrics.cpu.sampleMs=500;data.metrics.events.sampleLimit=10000;data.metrics.network.interfaceCount=-1;data.metrics.firewall={state:'unavailable',reason:'permission_denied',private:'DO_NOT_DISPLAY'};data.secret='DO_NOT_DISPLAY';
+ const root=createPcObservationView({api:{get:async()=>({ok:true,data})}});await click(root,'다시 조회');
+ assert.match(status(root),/4개 항목 확인 불가/);assert.doesNotMatch(root.textContent,/DO_NOT_DISPLAY/);
+});
+test('official cancellation ignores late results and timeout unlocks controls',async()=>{
+ for(const action of ['조회 취소','조회 기록 지우기']){
+  let resolve;const root=createPcObservationView({api:{get:()=>new Promise(r=>resolve=r)}});const pending=click(root,'다시 조회');click(root,action);resolve({ok:true,data:officialFixture});await pending;assert.equal(history(root).children.length,0);
+ }
+ const root=createPcObservationView({timeoutMs:1,api:{get:()=>new Promise(()=>{})}});await click(root,'다시 조회');assert.match(status(root),/시간이 초과/);assert.equal(button(root,'다시 조회').disabled,false);
+});
+test('official unsupported/error/invalid envelope never falls back to custom API and can retry',async()=>{
+ for(const first of [{ok:false,error:{code:'NOT_ALLOWED'}},{ok:false,error:{code:'TIMEOUT'}},{ok:true,data:{...officialFixture,source:'demo'}}]){
+  let calls=0;const root=createPcObservationView({api:{get:async()=>calls++?{ok:true,data:officialFixture}:first},request:()=>{throw Error('no fallback')}});
+  await click(root,'다시 조회');assert.equal(history(root).children.length,0);await click(root,'다시 조회');assert.equal(history(root).children.length,1);
+ }
+});
+test('official older results are rejected and history stays bounded',async()=>{
+ let data=officialFixture;const root=createPcObservationView({api:{get:async()=>({ok:true,data})}});
+ for(let i=0;i<32;i++)await click(root,'다시 조회');assert.equal(history(root).children.length,30);
+ data={...officialFixture,measuredAt:'2020-01-01T00:00:00Z'};await click(root,'다시 조회');assert.match(status(root),/오래된 결과/);assert.equal(history(root).children.length,30);
+});
