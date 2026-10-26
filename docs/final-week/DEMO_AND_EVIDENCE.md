@@ -1,5 +1,14 @@
 # 7일차 시연·검증 근거 인수인계
 
+> 최신 상태: [WAITING_HANDOFF](WAITING_HANDOFF.md). 아래 기존 57개 검증은 0.2.14 학생 개발 경로의 기록입니다. 0.2.19 공식 연동은 6항목이며 이벤트 합산 5,000건입니다. 새 연동의 Windows·설치형 성공은 아직 기록하지 않습니다.
+
+최신 재검증: **64개 통과, 실패 0** (기존 57 + 공식 API DOM 5 + 실제 HTTP/화면 연결 2).
+
+최신 재검증 명령:
+```text
+node --test test/pc-collector.test.mjs test/pc-server.test.mjs test/pc-view.test.mjs test/pc-official-http.test.mjs test/final-week-preflight.test.mjs test/stage18-explanation-lifecycle.test.mjs test/stage18-explanation.test.mjs test/stage19-action.test.mjs test/stage20-vulnerabilities.test.mjs
+```
+
 ## 현재 결과
 
 1일차의 기존 Windows 데모 필터·상세와 핵심 기능 선정은 사용자 확인으로 완료했다(#129, #131). 이후 학생 PC 기능은 개발 코드·자동 검증까지 준비했으며 사용자 Windows 실측, 동료 사용, 설치형 검증과 제출은 아직 하지 않았다. 과제 통과·실제 운영 연결·제품 전체 완료라고 보고하지 않는다.

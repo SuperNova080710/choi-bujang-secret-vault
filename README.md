@@ -1,4 +1,4 @@
-> **마지막 총공세 진행:** 학생 PC 읽기 전용 조회·타임라인 개발 코드와 자동 검증을 추가했습니다. Windows 실측·동료 사용·공식 포장·설치는 미확인입니다. [처음 실행](docs/final-week/QUICKSTART.md) · [현재 근거와 한계](docs/final-week/DEMO_AND_EVIDENCE.md) · [로컬 확인표](docs/final-week/LOCAL_ACCEPTANCE.md) · [포장 준비](docs/final-week/PACKAGING.md)
+> **마지막 총공세 진행:** 0.2.19 제공 파일과 공식 PC API 기반 학생 타임라인을 준비했습니다. Windows 기존 기능·디자인 정상은 사용자 보고이며 새 공식 연동/설치형 검증은 별도입니다. 승인 실행 환경 부재로 실제 포장은 담당자 대기 중입니다. [현재 인수인계](docs/final-week/WAITING_HANDOFF.md) · [실행 안내](docs/final-week/QUICKSTART.md)
 
 <!-- STUDENT_HISTORY_START -->
 ## 0~22단계 작업 이력과 현재 상태
