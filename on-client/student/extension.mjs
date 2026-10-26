@@ -1011,8 +1011,9 @@ export function createPcObservationView({ request = (...args) => fetch(...args),
   filterLabel.append(filter);
   const history = make('ol'); history.className = 'pc-history';
   const note = make('p', 'Windows 경고·오류 건수는 침해·공격 탐지 결과가 아닙니다. 방화벽은 프로필 설정이며 실제 차단 효과를 판정하지 않습니다. 네트워크 링크 연결은 인터넷·SDP 접속 성공을 뜻하지 않습니다.'); note.className = 'muted';
-  root.append(title, intro, connection, actions, status, current, filterLabel, history, note);
-  let rows = [], generation = 0, controller, timer, styled = false;
+  const style = make('link'); style.rel = 'stylesheet'; style.href = '/student/pc-view.css';
+  root.append(style, title, intro, connection, actions, status, current, filterLabel, history, note);
+  let rows = [], generation = 0, controller, timer;
   const names = { cpu: 'CPU 사용률', memory: '메모리 사용량', disk: '시스템 디스크 여유', network: '네트워크 어댑터', firewall: '방화벽 프로필 설정', systemEvents: 'System 경고·오류', applicationEvents: 'Application 경고·오류' };
   const keys = Object.keys(names);
   const numeric = v => typeof v === 'number' && Number.isFinite(v) && v >= 0;
@@ -1063,9 +1064,11 @@ export function createPcObservationView({ request = (...args) => fetch(...args),
     const cards = make('div'); cards.className = 'pc-grid';
     for (const key of keys) {
       const row = latest.metrics[key], card = make('article'); card.className = 'pc-metric'; card.setAttribute('data-state', row.status);
-      card.append(make('h4', names[key]), make('p', row.label));
+      card.setAttribute('data-metric', key);
+      const value = make('p', row.label); value.className = 'pc-value';
+      card.append(make('h4', names[key]), value);
       const change = comparison(key, row, rows[1]?.platform === latest.platform ? rows[1].metrics[key] : undefined);
-      if (change) card.append(make('p', change));
+      if (change) { const delta = make('p', change); delta.className = 'pc-change'; card.append(delta); }
       const detail = make('details'), heading = make('summary', '출처와 측정 시각');
       detail.append(heading, make('p', row.source), make('p', time(row.observedAt))); card.append(detail); cards.append(card);
     }
@@ -1100,7 +1103,6 @@ export function createPcObservationView({ request = (...args) => fetch(...args),
       const snapshot = validate(json.data);
       if (rows[0] && Date.parse(snapshot.at) < Date.parse(rows[0].at)) throw Error('OLD_RESULT');
       rows.unshift(snapshot); rows = rows.slice(0, 30); draw();
-      if (!styled) { const link = make('link'); link.rel = 'stylesheet'; link.href = '/student/pc-view.css'; root.prepend(link); styled = true; }
       const failed = keys.filter(key => snapshot.metrics[key].status !== 'ok').length;
       status.textContent = failed ? '조회 완료 · ' + failed + '개 항목 확인 불가. 각 항목의 이유를 확인해 주세요.' : '조회 완료 · 7개 항목을 읽었습니다. 보안 안전 판정이 아닙니다.';
     } catch (error) {
