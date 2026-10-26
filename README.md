@@ -1,3 +1,5 @@
+> **마지막 총공세 진행:** 학생 PC 읽기 전용 조회·타임라인 개발 코드와 자동 검증을 추가했습니다. Windows 실측·동료 사용·공식 포장·설치는 미확인입니다. [처음 실행](docs/final-week/QUICKSTART.md) · [현재 근거와 한계](docs/final-week/DEMO_AND_EVIDENCE.md) · [로컬 확인표](docs/final-week/LOCAL_ACCEPTANCE.md) · [포장 준비](docs/final-week/PACKAGING.md)
+
 <!-- STUDENT_HISTORY_START -->
 ## 0~22단계 작업 이력과 현재 상태
 
