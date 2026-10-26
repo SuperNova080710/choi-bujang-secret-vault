@@ -1,0 +1,9 @@
+{
+  "schema": "alekov.student-appearance.v1",
+  "palette": {
+    "accent": "#2457C5",
+    "background": "#F3F6FB",
+    "surface": "#FFFFFF"
+  },
+  "dashboardPreset": "student-first"
+}
