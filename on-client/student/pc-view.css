@@ -1,0 +1,18 @@
+/* Student-only scope; no global layout or provided styles are replaced. */
+.pc-observations { border: 1px solid #c4d3eb; border-radius: 12px; padding: 20px; margin: 0 0 24px; background: #f7faff; color: #18263d; }
+.pc-observations h2 { font-size: 1.25rem; color: #183c72; }
+.pc-observations .pc-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0; }
+.pc-observations .pc-actions button:first-child { background: #2357c6; color: #fff; border-color: #2357c6; }
+.pc-observations [role=status] { padding: 12px; border-left: 4px solid #2357c6; background: #eaf0fc; overflow-wrap: anywhere; }
+.pc-observations .pc-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 16px 0; }
+.pc-observations .pc-metric { padding: 16px; background: #fff; border: 1px solid #ccd7e7; border-radius: 8px; min-width: 0; }
+.pc-observations .pc-metric[data-state=unknown] { border-left: 4px solid #766449; }
+.pc-observations .pc-metric h4 { font-size: 1rem; color: #183c72; }
+.pc-observations p { overflow-wrap: anywhere; }
+.pc-observations label { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 16px 0; font-weight: 600; }
+.pc-observations select { min-height: 40px; max-width: 100%; font: inherit; padding: 6px 32px 6px 10px; }
+.pc-observations summary { cursor: pointer; padding: 10px 4px; line-height: 1.5; overflow-wrap: anywhere; }
+.pc-observations .pc-history { padding-left: 22px; max-height: 440px; overflow: auto; scrollbar-gutter: stable; }
+.pc-observations .pc-history li { border-bottom: 1px solid #ccd7e7; padding: 6px 0; }
+.pc-observations :focus-visible { outline: 3px solid #a34d00; outline-offset: 3px; box-shadow: none; }
+@media (max-width: 700px) { .pc-observations .pc-grid { grid-template-columns: 1fr; } }

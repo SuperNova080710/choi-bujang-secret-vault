@@ -4,6 +4,7 @@ import { demoEngine } from '../src/engine.mjs';
 import { collectPc } from './pc/collect.mjs';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
+import { readFile } from 'node:fs/promises';
 
 export function createPcServer({ demo = false, collect = collectPc } = {}) {
   const server = createOnServer(demo ? { engine: demoEngine() } : {});
@@ -11,6 +12,17 @@ export function createPcServer({ demo = false, collect = collectPc } = {}) {
   server.removeAllListeners('request');
   let busy = false;
   server.on('request', async (req, res) => {
+    if (req.url === '/student/pc-view.css') {
+      const port = server.address()?.port;
+      if (req.method !== 'GET' || ![`127.0.0.1:${port}`, `localhost:${port}`].includes(req.headers.host) || req.headers['sec-fetch-site'] === 'cross-site') {
+        res.writeHead(403); res.end(); return;
+      }
+      try {
+        const css = await readFile(new URL('./pc-view.css', import.meta.url));
+        res.writeHead(200, { 'content-type': 'text/css; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' }); res.end(css);
+      } catch { res.writeHead(404); res.end(); }
+      return;
+    }
     if (!req.url?.startsWith('/api/student/pc-observation')) { original(req, res); return; }
     const reply = (status, body) => {
       if (res.destroyed) return;
