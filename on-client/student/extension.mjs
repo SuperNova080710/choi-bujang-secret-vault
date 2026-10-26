@@ -1,6 +1,7 @@
 // 이 파일은 학생이 같은 프로젝트에서 이어서 구현합니다.
 // 제공 UI를 받은 것만으로 단계 완료를 인정하지 않습니다.
 export function createStudentView() {
+  let pcPanel;
   return {
     renderIdentity({ me, devices, sessions } = {}) {
       // 매 호출마다 새 DOM을 만들고, 이전 입력이나 사용자 정보를 보관하지 않습니다.
@@ -381,6 +382,9 @@ export function createStudentView() {
       // 제공 화면의 최신 입력만 사용합니다. 네트워크 요청이나 자동 재시도는 하지 않습니다.
       const root = document.createElement('section');
       root.setAttribute('aria-label', '기기·세션·알림·도움정보 상태');
+      pcPanel ??= createPcObservationView();
+      pcPanel.setConnection(mode);
+      root.append(pcPanel);
       const make = (tag, value) => {
         const node = document.createElement(tag);
         if (value !== undefined) node.textContent = String(value);
@@ -984,3 +988,128 @@ export function createStudentView() {
   };
 }
 
+
+// 학생 추가 기능. 요청은 사용자가 버튼을 누를 때만 보내며 PC 자료는 메모리에만 둡니다.
+export function createPcObservationView({ request = (...args) => fetch(...args), timeoutMs = 16000 } = {}) {
+  const make = (tag, text) => { const el = document.createElement(tag); if (text !== undefined) el.textContent = text; return el; };
+  const root = make('section'); root.className = 'pc-observations'; root.setAttribute('aria-label', '내 PC 조회 타임라인');
+  const title = make('h2', '내 PC 조회 타임라인');
+  const connection = make('p'); connection.className = 'muted';
+  root.setConnection = mode => { connection.textContent = 'SDP 자료: ' + ({ demo: '예제 자료 · 실제 서버 연결 아님', disconnected: 'SDP 미연결', connected: '연결된 자료', unknown: '연결 여부 확인 불가' }[mode] ?? '연결 여부 확인 불가') + ' · PC 실측과 별도입니다.'; };
+  root.setConnection('unknown');
+  const intro = make('p', '이 앱 서버가 실행되는 PC를 읽습니다. 버튼을 누를 때만 측정하며 화면을 닫으면 조회 기록이 사라집니다.');
+  const actions = make('div'); actions.className = 'pc-actions';
+  const read = make('button', '다시 조회'), cancel = make('button', '조회 취소'), clear = make('button', '조회 기록 지우기');
+  for (const button of [read, cancel, clear]) { button.type = 'button'; button.className = 'btn'; }
+  cancel.disabled = true; actions.append(read, cancel, clear);
+  const status = make('p', '아직 조회하지 않았습니다.'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
+  const current = make('div'); current.className = 'pc-current';
+  const filterLabel = make('label', '조회 기록 필터 '), filter = make('select'); filter.setAttribute('aria-label', 'PC 조회 기록 필터');
+  for (const [value, text] of [['all', '전체'], ['resources', 'CPU·메모리·디스크'], ['security', '연결·방화벽·이벤트'], ['unknown', '확인 불가']]) {
+    const option = make('option', text); option.value = value; filter.append(option);
+  }
+  filterLabel.append(filter);
+  const history = make('ol'); history.className = 'pc-history';
+  const note = make('p', 'Windows 경고·오류 건수는 침해·공격 탐지 결과가 아닙니다. 방화벽은 프로필 설정이며 실제 차단 효과를 판정하지 않습니다. 네트워크 링크 연결은 인터넷·SDP 접속 성공을 뜻하지 않습니다.'); note.className = 'muted';
+  root.append(title, intro, connection, actions, status, current, filterLabel, history, note);
+  let rows = [], generation = 0, controller, timer, styled = false;
+  const names = { cpu: 'CPU 사용률', memory: '메모리 사용량', disk: '시스템 디스크 여유', network: '네트워크 어댑터', firewall: '방화벽 프로필 설정', systemEvents: 'System 경고·오류', applicationEvents: 'Application 경고·오류' };
+  const keys = Object.keys(names);
+  const numeric = v => typeof v === 'number' && Number.isFinite(v) && v >= 0;
+  const integer = v => Number.isSafeInteger(v) && v >= 0;
+  const gib = n => (n / 1073741824).toFixed(2) + ' GiB';
+  const time = iso => new Date(iso).toLocaleString('ko-KR', { hour12: false }) + ' (PC 현지 시각)';
+  const reason = code => ({ WINDOWS_ONLY: 'Windows에서만 조회할 수 있습니다.', READ_FAILED: '권한 또는 조회 기능을 확인한 뒤 다시 조회하세요.', COLLECTOR_FAILED: 'Windows 조회가 실패하거나 제한 시간을 넘었습니다. 실행 환경을 확인한 뒤 다시 조회하세요.', INVALID_RESULT: '조회 결과 형식을 확인하지 못했습니다.' }[code] ?? '조회 결과를 확인하지 못했습니다. 다시 조회하세요.');
+  function summary(key, row) {
+    const v = row?.value;
+    if (row?.status !== 'ok') return '확인 불가 — ' + reason(row?.code);
+    if (key === 'cpu' && numeric(v) && v <= 100) return v.toFixed(1) + '% · 500ms 구간';
+    if (key === 'memory' && numeric(v?.totalBytes) && v.totalBytes > 0 && numeric(v?.usedBytes) && v.usedBytes <= v.totalBytes)
+      return gib(v.usedBytes) + ' / ' + gib(v.totalBytes) + ' (' + (v.usedBytes / v.totalBytes * 100).toFixed(1) + '% · 전체−여유)';
+    if (key === 'disk' && numeric(v?.totalBytes) && v.totalBytes > 0 && numeric(v?.freeBytes) && v.freeBytes <= v.totalBytes)
+      return gib(v.freeBytes) + ' / ' + gib(v.totalBytes) + ' 여유';
+    if (key === 'network' && integer(v?.total) && integer(v?.up) && v.up <= v.total) return '링크 연결 ' + v.up + '개 / 전체 ' + v.total + '개';
+    if (key === 'firewall' && ['domain', 'private', 'public'].every(k => typeof v?.[k] === 'boolean'))
+      return ['domain', 'private', 'public'].map(k => k + ': ' + (v[k] ? '켜짐' : '꺼짐')).join(' · ');
+    if (['systemEvents', 'applicationEvents'].includes(key) && integer(v?.warnings) && integer(v?.errors) && v.warnings + v.errors <= 10000 && typeof v.capped === 'boolean'
+      && Number.isFinite(Date.parse(v.windowStart)) && Number.isFinite(Date.parse(v.windowEnd)) && Date.parse(v.windowStart) < Date.parse(v.windowEnd))
+      return '경고 ' + v.warnings + '건 · 오류 ' + v.errors + '건' + (v.capped ? ' · 최신 10,000건만 집계 (전체 아님)' : '') + ' · ' + time(v.windowStart) + ' ~ ' + time(v.windowEnd);
+    return '확인 불가 — 조회 결과 형식이 올바르지 않습니다.';
+  }
+  function validate(data) {
+    if (data?.schema !== 'choi.pc-observation.v1' || data.mode !== 'measured' || !Number.isFinite(Date.parse(data.checkedAt)) || !data.metrics) throw Error('INVALID_RESULT');
+    const copy = { at: data.checkedAt, platform: typeof data.platform === 'string' ? data.platform : 'unknown', metrics: {} };
+    for (const key of keys) {
+      const row = data.metrics[key];
+      if (!row || !['ok', 'unknown'].includes(row.status) || !Number.isFinite(Date.parse(row.observedAt)) || typeof row.source !== 'string' || row.source.length > 180) throw Error('INVALID_RESULT');
+      copy.metrics[key] = { ...row, label: summary(key, row) };
+      if (copy.metrics[key].label.startsWith('확인 불가')) copy.metrics[key].status = 'unknown';
+    }
+    return copy;
+  }
+  function comparison(key, item, previous) {
+    if (!previous || item.status !== 'ok' || previous.status !== 'ok' || item.source !== previous.source) return '';
+    const value = v => key === 'cpu' ? v : key === 'memory' ? v.usedBytes / v.totalBytes * 100 : v.freeBytes / 1073741824;
+    if (!['cpu', 'memory', 'disk'].includes(key)) return '';
+    const delta = value(item.value) - value(previous.value);
+    return '직전 조회 대비 ' + (delta > 0 ? '+' : '') + delta.toFixed(1) + (key === 'disk' ? ' GiB' : '%p');
+  }
+  function draw() {
+    current.replaceChildren(); history.replaceChildren();
+    if (!rows.length) { current.append(make('p', '저장된 PC 조회가 없습니다.')); return; }
+    const latest = rows[0];
+    current.append(make('h3', '마지막 조회 · ' + time(latest.at)));
+    current.append(make('p', '서버 OS: ' + latest.platform + ' · 실측 조회 기록이며 현재 실시간 상태가 아닙니다.'));
+    const cards = make('div'); cards.className = 'pc-grid';
+    for (const key of keys) {
+      const row = latest.metrics[key], card = make('article'); card.className = 'pc-metric'; card.setAttribute('data-state', row.status);
+      card.append(make('h4', names[key]), make('p', row.label));
+      const change = comparison(key, row, rows[1]?.platform === latest.platform ? rows[1].metrics[key] : undefined);
+      if (change) card.append(make('p', change));
+      const detail = make('details'), heading = make('summary', '출처와 측정 시각');
+      detail.append(heading, make('p', row.source), make('p', time(row.observedAt))); card.append(detail); cards.append(card);
+    }
+    current.append(cards);
+    for (const snapshot of rows) {
+      const selected = keys.filter(key => filter.value === 'resources' ? ['cpu', 'memory', 'disk'].includes(key) : filter.value === 'security' ? !['cpu', 'memory', 'disk'].includes(key) : filter.value === 'unknown' ? snapshot.metrics[key].status === 'unknown' : true);
+      if (!selected.length) continue;
+      const item = make('li'), detail = make('details'); detail.append(make('summary', time(snapshot.at) + ' · ' + selected.length + '개 항목'));
+      for (const key of selected) detail.append(make('p', names[key] + ': ' + snapshot.metrics[key].label));
+      item.append(detail); history.append(item);
+    }
+    if (!history.childElementCount) history.append(make('li', '필터 조건에 맞는 기록이 없습니다.'));
+  }
+  function stop() { generation++; controller?.abort(); controller = undefined; clearTimeout(timer); timer = undefined; read.disabled = false; cancel.disabled = true; root.setAttribute('aria-busy', 'false'); }
+  cancel.addEventListener('click', () => { stop(); status.textContent = '조회 취소. 이전 기록은 과거 조회로 남아 있습니다. 서버의 읽기 작업은 제한 시간 안에 종료됩니다.'; });
+  clear.addEventListener('click', () => { stop(); rows = []; draw(); status.textContent = '메모리의 PC 조회 기록을 지웠습니다.'; });
+  filter.addEventListener('change', draw);
+  read.addEventListener('click', async () => {
+    if (read.disabled) return;
+    stop(); const currentGeneration = generation; controller = new AbortController(); let timedOut = false;
+    timer = setTimeout(() => { timedOut = true; controller?.abort(); }, timeoutMs);
+    read.disabled = true; cancel.disabled = false; root.setAttribute('aria-busy', 'true'); status.textContent = 'PC 상태를 읽는 중입니다. 이전 값은 과거 조회입니다.';
+    try {
+      const response = await request('/api/student/pc-observation', { method: 'POST', headers: { 'X-Student-PC': 'read' }, signal: controller.signal, cache: 'no-store' });
+      if (currentGeneration !== generation) return;
+      if (response.status === 404) throw Error('UNSUPPORTED');
+      if (response.status === 429) throw Error('BUSY');
+      if (!response.ok) throw Error('REQUEST_FAILED');
+      const json = await response.json();
+      if (currentGeneration !== generation) return;
+      if (json.ok !== true) throw Error('INVALID_RESULT');
+      const snapshot = validate(json.data);
+      if (rows[0] && Date.parse(snapshot.at) < Date.parse(rows[0].at)) throw Error('OLD_RESULT');
+      rows.unshift(snapshot); rows = rows.slice(0, 30); draw();
+      if (!styled) { const link = make('link'); link.rel = 'stylesheet'; link.href = '/student/pc-view.css'; root.prepend(link); styled = true; }
+      const failed = keys.filter(key => snapshot.metrics[key].status !== 'ok').length;
+      status.textContent = failed ? '조회 완료 · ' + failed + '개 항목 확인 불가. 각 항목의 이유를 확인해 주세요.' : '조회 완료 · 7개 항목을 읽었습니다. 보안 안전 판정이 아닙니다.';
+    } catch (error) {
+      if (currentGeneration !== generation) return;
+      status.textContent = timedOut ? '조회 시간이 초과됐습니다. 잠시 후 다시 조회하세요. 이전 기록은 과거 조회입니다.'
+        : ({ UNSUPPORTED: '현재 실행 경로는 PC 조회를 지원하지 않습니다. 서버를 종료하고 on-client에서 node student/start-pc.mjs --demo로 실행하세요. 공식 설치형 host 연결은 아직 미확인입니다.', BUSY: '서버에서 이전 조회가 진행 중입니다. 잠시 후 다시 조회하세요.', INVALID_RESULT: '조회 결과 형식을 확인하지 못했습니다. 실행 버전을 확인한 뒤 다시 조회하세요.', OLD_RESULT: '이전 조회보다 오래된 결과를 받았습니다. PC 시각을 확인한 뒤 다시 조회하세요.' }[error.message] ?? 'PC 조회에 실패했습니다. 앱 서버 실행 상태를 확인한 뒤 다시 조회하세요. 이전 기록은 과거 조회입니다.');
+    } finally {
+      if (currentGeneration === generation) { clearTimeout(timer); timer = undefined; controller = undefined; read.disabled = false; cancel.disabled = true; root.setAttribute('aria-busy', 'false'); }
+    }
+  });
+  draw(); return root;
+}
