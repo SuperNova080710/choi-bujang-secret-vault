@@ -100,3 +100,17 @@ test('official older results are rejected and history stays bounded',async()=>{
  for(let i=0;i<32;i++)await click(root,'다시 조회');assert.equal(history(root).children.length,30);
  data={...officialFixture,measuredAt:'2020-01-01T00:00:00Z'};await click(root,'다시 조회');assert.match(status(root),/오래된 결과/);assert.equal(history(root).children.length,30);
 });
+
+test('official student panel uses globally available layout rather than pc-status-scoped selectors',async()=>{
+ const root=createPcObservationView({api:{get:async()=>({ok:true,data:officialFixture})}});await click(root,'다시 조회');
+ const all=nodes(root);assert.equal(all.filter(n=>n.className==='grid-2').length,1);
+ assert.equal(all.filter(n=>n.tag==='article'&&n.className.split(' ').includes('card')).length,6);
+ assert.equal(all.filter(n=>n.tag==='strong'&&n.className.includes('item-title')).length,6);
+ assert.equal(history(root).className,'pc-history records');assert.equal(history(root).children[0].className,'event');
+ assert.equal(all.some(n=>n.className==='pc-actions row'),true);
+ assert.equal(all.some(n=>n.className==='pc-metrics'),false);
+ assert.equal(all.some(n=>n.tag==='link'),false);
+ const {readFile}=await import('node:fs/promises');const css=await readFile(new URL('../on-client/public/style.css',import.meta.url),'utf8');
+ for(const cls of ['grid-2','card','row','records','event','item-title','muted']) assert.match(css,new RegExp('(?:^|\\n)\\.'+cls+'\\s*\\{'));
+ assert.match(css,/\.grid-2 \{ grid-template-columns: minmax\(0, 1fr\)/);
+});
