@@ -999,18 +999,19 @@ export function createPcObservationView({ api, request = (...args) => fetch(...a
   root.setConnection = mode => { connection.textContent = 'SDP 자료: ' + ({ demo: '예제 자료 · 실제 서버 연결 아님', disconnected: 'SDP 미연결', connected: '연결된 자료', unknown: '연결 여부 확인 불가' }[mode] ?? '연결 여부 확인 불가') + ' · PC 실측과 별도입니다.'; };
   root.setConnection('unknown');
   const intro = make('p', '이 앱 서버가 실행되는 PC를 읽습니다. 버튼을 누를 때만 측정하며 화면을 닫으면 조회 기록이 사라집니다.');
-  const actions = make('div'); actions.className = 'pc-actions';
+  const actions = make('div'); actions.className = official ? 'pc-actions row' : 'pc-actions';
   const read = make('button', '다시 조회'), cancel = make('button', '조회 취소'), clear = make('button', '조회 기록 지우기');
   for (const button of [read, cancel, clear]) { button.type = 'button'; button.className = 'btn'; }
   cancel.disabled = true; actions.append(read, cancel, clear);
-  const status = make('p', '아직 조회하지 않았습니다.'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
+  const status = make('p', '아직 조회하지 않았습니다.'); if (official) status.className = 'state state-empty'; status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
   const current = make('div'); current.className = 'pc-current';
   const filterLabel = make('label', '조회 기록 필터 '), filter = make('select'); filter.setAttribute('aria-label', 'PC 조회 기록 필터');
   for (const [value, text] of [['all', '전체'], ['resources', 'CPU·메모리·디스크'], ['security', '연결·방화벽·이벤트'], ['unknown', '확인 불가']]) {
     const option = make('option', text); option.value = value; filter.append(option);
   }
+  if (official) { filterLabel.className = 'event-actions'; filter.className = 'btn'; }
   filterLabel.append(filter);
-  const history = make('ol'); history.className = 'pc-history';
+  const history = make('ol'); history.className = official ? 'pc-history records' : 'pc-history';
   const note = make('p', 'Windows 경고·오류 건수는 침해·공격 탐지 결과가 아닙니다. 방화벽은 프로필 설정이며 실제 차단 효과를 판정하지 않습니다. 네트워크 링크 연결은 인터넷·SDP 접속 성공을 뜻하지 않습니다.'); note.className = 'muted';
   const style = make('link'); style.rel = 'stylesheet'; style.href = '/student/pc-view.css';
   if (!official) root.append(style);
@@ -1068,14 +1069,14 @@ export function createPcObservationView({ api, request = (...args) => fetch(...a
     const latest = rows[0];
     current.append(make('h3', '마지막 조회 · ' + time(latest.at)));
     current.append(make('p', (official ? '공식 PC 조회 · OS 정보는 응답에 포함되지 않습니다.' : '서버 OS: ' + latest.platform) + ' · 실측 조회 기록이며 현재 실시간 상태가 아닙니다.'));
-    const cards = make('div'); cards.className = official ? 'pc-metrics' : 'pc-grid';
+    const cards = make('div'); cards.className = official ? 'grid-2' : 'pc-grid';
     for (const key of keys) {
-      const row = latest.metrics[key], card = make('article'); card.className = 'pc-metric'; card.setAttribute('data-state', row.status);
+      const row = latest.metrics[key], card = make('article'); card.className = official ? 'pc-metric card' : 'pc-metric'; card.setAttribute('data-state', row.status);
       card.setAttribute('data-metric', key);
-      const value = make('p', row.label); value.className = 'pc-value';
+      const value = make(official ? 'strong' : 'p', row.label); value.className = official ? 'pc-value item-title' : 'pc-value';
       card.append(make('h4', names[key]), value);
       const change = comparison(key, row, rows[1]?.platform === latest.platform ? rows[1].metrics[key] : undefined);
-      if (change) { const delta = make('p', change); delta.className = 'pc-change'; card.append(delta); }
+      if (change) { const delta = make('p', change); delta.className = official ? 'pc-change muted' : 'pc-change'; card.append(delta); }
       const detail = make('details'), heading = make('summary', '출처와 측정 시각');
       detail.append(heading, make('p', row.source), make('p', time(row.observedAt))); card.append(detail); cards.append(card);
     }
@@ -1083,7 +1084,7 @@ export function createPcObservationView({ api, request = (...args) => fetch(...a
     for (const snapshot of rows) {
       const selected = keys.filter(key => filter.value === 'resources' ? ['cpu', 'memory', 'disk'].includes(key) : filter.value === 'security' ? !['cpu', 'memory', 'disk'].includes(key) : filter.value === 'unknown' ? snapshot.metrics[key].status === 'unknown' : true);
       if (!selected.length) continue;
-      const item = make('li'), detail = make('details'); detail.append(make('summary', time(snapshot.at) + ' · ' + selected.length + '개 항목'));
+      const item = make('li'), detail = make('details'); if (official) item.className = 'event'; detail.append(make('summary', time(snapshot.at) + ' · ' + selected.length + '개 항목'));
       for (const key of selected) detail.append(make('p', names[key] + ': ' + snapshot.metrics[key].label));
       item.append(detail); history.append(item);
     }
