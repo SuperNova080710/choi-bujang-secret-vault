@@ -1,4 +1,4 @@
-> **마지막 총공세 진행:** 0.2.19 제공 파일과 공식 PC API 기반 학생 타임라인을 준비했습니다. Windows 기존 기능·디자인 정상은 사용자 보고이며 새 공식 연동/설치형 검증은 별도입니다. 승인 실행 환경 부재로 실제 포장은 담당자 대기 중입니다. [현재 인수인계](docs/final-week/WAITING_HANDOFF.md) · [실행 안내](docs/final-week/QUICKSTART.md)
+> **현재 상태 · 2026-10-27:** Windows 공식 PC 6항목 실측·비교·필터·삭제·재조회·출처 펼침 유지와 계정·AI API 점검(verified)을 사용자 확인했습니다. SDP는 설정 미제공으로 보류, GitHub 실제 연동·OSV 실제 조회는 미확인입니다. 마무리 과제는 전달받은 공지에 따라 저장소 URL+커밋 SHA로 제출하며 포장은 선행 조건이 아닙니다. [현재 인수인계](docs/final-week/WAITING_HANDOFF.md) · [Windows 확인](docs/final-week/LOCAL_ACCEPTANCE.md) · [앱 소개·시연](docs/final-week/RELEASE_KIT.md)
 
 <!-- STUDENT_HISTORY_START -->
 ## 0~22단계 작업 이력과 현재 상태
@@ -9,13 +9,13 @@
 - [학생 실행 설명서](docs/STUDENT_RUNBOOK.md) · [최종 인수인계와 백업·복원](docs/STUDENT_HANDOVER.md)
 - 운영 미확인: [실제 AI 연결 #89](https://github.com/SuperNova080710/choi-bujang-secret-vault/issues/89), [본인 PC 재현·SDP/OSV·실집행·데이터 복원 #123](https://github.com/SuperNova080710/choi-bujang-secret-vault/issues/123)
 
-0단계는 사용자 확인 결과 기록이 없습니다. 실제 AI 성공 및 본인 PC 최종 재현은 추가 확인하지 않았습니다. 과제 통과를 운영 인증이나 v1.0 인증으로 표현하지 않습니다.
+0단계는 사용자 확인 결과 기록이 없습니다. 2026-10-27 계정·AI API 점검과 기존 폴더 PC 기능은 확인했지만 실제 사건 설명 생성·같은 최종 SHA의 새 폴더 재현은 미확인입니다. 과제 통과를 운영 인증이나 v1.0 인증으로 표현하지 않습니다.
 <!-- STUDENT_HISTORY_END -->
 
 <!-- STUDENT_STAGE22_START -->
 ## 22단계 · 재현 가능한 최종 인수인계
 
-현재 버전은 **검증 중인 인수인계 후보**입니다. 실제 SDP·AI·OSV 연결과 19단계 실집행은 별도 미확인 범위이며, 22단계 원문 검토 통과가 운영 인증이나 v1.0 자동 인증을 뜻하지 않습니다.
+아래는 22단계 당시의 인수인계 기록입니다. 현재 계정·AI API 점검은 확인했고 실제 SDP·사건 설명 생성·OSV와 19단계 실집행은 별도 미확인 범위이며, 22단계 원문 검토 통과가 운영 인증이나 v1.0 자동 인증을 뜻하지 않습니다.
 
 - [최종 인수인계·새 폴더 재현·데이터 백업/복원 계획](docs/STUDENT_HANDOVER.md)
 - [21단계 실행 설명서](docs/STUDENT_RUNBOOK.md)
@@ -34,7 +34,7 @@
 - 구성: PC 브라우저 → `on-client/src/server.mjs` → 접근 제어·XDR 호스트 / AI 게이트웨이 / OSV. 구성도와 실제 모듈 경로는 설명서 5절에 있습니다.
 - 학생 구현: `on-client/student/extension.mjs`의 사용자·판정·기록·상태·AI 연결·설명·조치·취약점 렌더 함수. 제공 코드가 요청·인증·원천 검증을 담당합니다.
 - 기준 버전: 로컬 앱 `0.2.11`, Node.js `24.19.0`. 이번 Linux 확인은 npm `11.9.0`, Git `2.51.1`입니다. Windows PowerShell 실행기 및 실제 운영 연결은 이번 작업에서 미확인입니다.
-- 기본 실행은 on-client에서 `npm start`, 예제는 `npm run demo`, 문법 검사는 `npm run check`. 주소는 `http://127.0.0.1:5189/`입니다. 로컬 앱은 외부 npm 의존성이 없어 이 실행에 별도 npm 설치가 필요하지 않습니다.
+- 현재 Windows 계정·AI 연결 실행은 on-client에서 `powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\start-alekov.ps1`입니다. `npm start`는 native 연결 준비를 수행하지 않습니다. 예제는 `npm run demo`, 문법 검사는 `npm run check`. 주소는 `http://127.0.0.1:5189/`입니다. 로컬 앱은 외부 npm 의존성이 없어 이 실행에 별도 npm 설치가 필요하지 않습니다.
 - 2026-10-23: 기본/demo HTTP 시작·종료·재실행 확인. 기본 엔진 미연결과 OSV `not_configured`를 구분했습니다. 앞 단계 모의/회귀 38건 통과 기록과 실제 운영 미확인 항목은 설명서 9절에 있습니다.
 - 20단계 공식 통과는 사용자 보고로 기록했습니다. 21단계는 코드·문서 대조 판정이며 서버의 실제 실행 검증을 뜻하지 않습니다. 병합은 사용자가 직접 진행합니다.
 
