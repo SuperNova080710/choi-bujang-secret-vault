@@ -1,3 +1,5 @@
+> 2026-10-27 갱신: 아래 포장 절차·검증 수치는 작성 당시 기록입니다. 사용자 전달 공지상 과제 제출은 저장소 URL+커밋 SHA이며 포장/업로드가 필수 조건이 아닙니다. 최신 Windows·AI 확인은 [현재 인수인계](WAITING_HANDOFF.md), 소개·시연은 [배포 자료](RELEASE_KIT.md)를 따릅니다. 설치형 배포 검증은 여전히 별도입니다.
+
 # 6일차 공식 포장·설치 준비
 
 0.2.19에는 공식 `package-app`이 포함됩니다. 사용자 Windows에서 `PROVIDED_RUNTIME_NOT_INSTALLED`를 실제 확인했고 담당자는 대기를 안내했습니다. Inno Setup은 설치 완료입니다. [현재 근거·잔여 작업](WAITING_HANDOFF.md)을 먼저 읽습니다.
