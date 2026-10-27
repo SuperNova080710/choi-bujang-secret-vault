@@ -384,7 +384,7 @@ export function createStudentView({ api } = {}) {
       root.setAttribute('aria-label', '기기·세션·알림·도움정보 상태');
       pcPanel ??= createPcObservationView({ api });
       pcPanel.setConnection(mode);
-      root.append(pcPanel);
+      root.append(pcPanel, createGithubReadinessView());
       const make = (tag, value) => {
         const node = document.createElement(tag);
         if (value !== undefined) node.textContent = String(value);
@@ -1163,4 +1163,24 @@ export function normalizeOfficialPc(data) {
     metrics[key] = { status: m?.state === 'ok' ? 'ok' : 'unknown', source, observedAt: data.measuredAt, value, code: m?.reason === 'unsupported' ? 'WINDOWS_ONLY' : 'READ_FAILED' };
   }
   return { schema: 'choi.pc-observation.v1', mode: 'measured', checkedAt: data.measuredAt, platform: 'official-contract', metrics };
+}
+
+
+// No service API is exposed by the official 0.2.19 student contract.
+export function createGithubReadinessView() {
+  const make = (tag, text) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; return node; };
+  const section = make('section'); section.className = 'card';
+  section.setAttribute('aria-label', 'GitHub 서비스 연결 준비');
+  const state = make('p', '연결 전 · 확인 불가'); state.className = 'state state-empty';
+  section.append(make('h2', 'GitHub 서비스'), state,
+    make('p', '공식 앱의 GitHub 조회 경로가 아직 제공되지 않아 서비스 정보를 읽지 않았습니다.'),
+    make('p', '저장소 변경·이슈·자동 검사: 확인 불가'),
+    make('p', '사용량·월 비용: 확인 불가'),
+    make('p', '계정 보안·취약점: 확인 불가'),
+    make('p', '다음 단계: 담당자의 공식 서비스 연결 방법과 지원 권한을 확인합니다.'));
+  const evidence = make('details');
+  evidence.append(make('summary', '조회 범위와 제한'),
+    make('p', '출처: 시작 틀 0.2.19 학생 API 허용 목록. GitHub 조회 시각: 미조회.'),
+    make('p', '이 카드는 외부 요청이나 인증정보 입력·저장을 하지 않습니다. PC 실측 및 SDP 연결 상태와는 별개입니다.'));
+  section.append(evidence); return section;
 }
