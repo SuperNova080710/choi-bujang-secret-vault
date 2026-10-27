@@ -153,3 +153,17 @@ test('observations distinguish disabled profiles, partial event counts, unknowns
  assert.match(observations().textContent,/방화벽 설정: 확인 불가/);
  click(root,'조회 기록 지우기');assert.equal(observations(),undefined);
 });
+
+
+test('filter preserves live metric nodes and interpretation details stay collapsed by default',async()=>{
+ const root=createPcObservationView({api:{get:async()=>({ok:true,data:officialFixture})}});
+ await click(root,'다시 조회');
+ const cpu=nodes(root).find(n=>n.attrs['data-metric']==='cpu');
+ const source=cpu.children.find(n=>n.tag==='details');source.open=true;
+ const filter=nodes(root).find(n=>n.tag==='select');filter.value='unknown';filter.listeners.change();
+ assert.equal(nodes(root).find(n=>n.attrs['data-metric']==='cpu'),cpu);
+ assert.equal(source.open,true);
+ assert.match(history(root).textContent,/필터 조건에 맞는 기록이 없습니다/);
+ const limits=nodes(root).find(n=>n.tag==='details'&&n.children[0]?.text==='측정값을 해석할 때 알아둘 점');
+ assert.ok(limits);assert.ok(!limits.open);
+});

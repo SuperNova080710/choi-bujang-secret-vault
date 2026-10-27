@@ -1015,7 +1015,9 @@ export function createPcObservationView({ api, request = (...args) => fetch(...a
   const note = make('p', 'Windows 경고·오류 건수는 침해·공격 탐지 결과가 아닙니다. 방화벽은 프로필 설정이며 실제 차단 효과를 판정하지 않습니다. 네트워크 링크 연결은 인터넷·SDP 접속 성공을 뜻하지 않습니다.'); note.className = 'muted';
   const style = make('link'); style.rel = 'stylesheet'; style.href = '/student/pc-view.css';
   if (!official) root.append(style);
-  root.append(title, intro, connection, actions, status, current, filterLabel, history, note);
+  const limits = make('details'); limits.append(make('summary', '측정값을 해석할 때 알아둘 점'), note);
+  const historyTitle = make('h3', '조회 기록');
+  root.append(title, intro, connection, actions, status, current, historyTitle, filterLabel, history, limits);
   if (official) intro.textContent = '공식 PC 조회 기능으로 읽고, 학생 화면에서 최근 30회 기록과 직전 값을 비교합니다. 수동 조회이며 화면을 닫으면 기록이 사라집니다.';
   let rows = [], generation = 0, controller, timer;
   const evidenceNodes = new Map();
@@ -1112,9 +1114,15 @@ export function createPcObservationView({ api, request = (...args) => fetch(...a
       if (change) { const delta = make('p', change); delta.className = official ? 'pc-change muted' : 'pc-change'; card.append(delta); }
       const detail = make('details'), heading = make('summary', '출처와 측정 시각');
       detail.open = expandedEvidence.has(key); evidenceNodes.set(key, detail);
-      detail.append(heading, make('p', row.source), make('p', time(row.observedAt))); card.append(detail); cards.append(card);
+      const source = make('p', row.source); source.className = 'item-title';
+      detail.append(heading, source, make('p', time(row.observedAt))); card.append(detail); cards.append(card);
     }
     current.append(cards);
+    drawHistory();
+  }
+  function drawHistory() {
+    history.replaceChildren();
+    if (!rows.length) return;
     for (const snapshot of rows) {
       const selected = keys.filter(key => filter.value === 'resources' ? ['cpu', 'memory', 'disk'].includes(key) : filter.value === 'security' ? !['cpu', 'memory', 'disk'].includes(key) : filter.value === 'unknown' ? snapshot.metrics[key].status === 'unknown' : true);
       if (!selected.length) continue;
@@ -1127,7 +1135,7 @@ export function createPcObservationView({ api, request = (...args) => fetch(...a
   function stop() { generation++; controller?.abort(); controller = undefined; clearTimeout(timer); timer = undefined; read.disabled = false; cancel.disabled = true; root.setAttribute('aria-busy', 'false'); }
   cancel.addEventListener('click', () => { stop(); status.textContent = '조회 취소. 이전 기록은 과거 조회로 남아 있습니다. 서버의 읽기 작업은 제한 시간 안에 종료됩니다.'; });
   clear.addEventListener('click', () => { stop(); rows = []; draw(); status.textContent = '메모리의 PC 조회 기록을 지웠습니다.'; });
-  filter.addEventListener('change', draw);
+  filter.addEventListener('change', drawHistory);
   read.addEventListener('click', async () => {
     if (read.disabled) return;
     stop(); const currentGeneration = generation; controller = new AbortController(); let timedOut = false;
