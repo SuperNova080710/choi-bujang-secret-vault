@@ -131,3 +131,25 @@ test('summary counts partial results and keeps evidence expanded through filter 
  evidence().open=false;filter.listeners.change();assert.equal(evidence().open,false);
  click(root,'조회 기록 지우기');assert.doesNotMatch(root.textContent,/읽은 항목 5/);
 });
+
+
+test('observations distinguish disabled profiles, partial event counts, unknowns and zero',async()=>{
+ let data=structuredClone(officialFixture);data.metrics.events.truncated=true;
+ const root=createPcObservationView({api:{get:async()=>({ok:true,data})}});
+ const observations=()=>nodes(root).find(n=>n.attrs['aria-label']==='PC 관찰 요약');
+ await click(root,'다시 조회');
+ assert.match(observations().textContent,/꺼진 방화벽 프로필: private/);
+ assert.match(observations().textContent,/일부 집계/);
+ assert.match(observations().textContent,/비교 가능한 이전 실측이 없습니다/);
+ data=structuredClone(data);data.metrics.cpu.usagePercent=30;
+ data.metrics.firewall.profiles.forEach(p=>p.enabled=true);
+ data.metrics.events.warningCount=0;data.metrics.events.errorCount=0;
+ await click(root,'다시 조회');
+ assert.match(observations().textContent,/CPU 사용률 · 직전 조회 대비 \+10\.0%p/);
+ assert.match(observations().textContent,/경고 0건 · 오류 0건/);
+ assert.match(observations().textContent,/0건도 이상 없음의 증거가 아닙니다/);
+ assert.doesNotMatch(observations().textContent,/꺼진 방화벽 프로필: private/);
+ data.metrics.firewall={state:'unavailable'};await click(root,'다시 조회');
+ assert.match(observations().textContent,/방화벽 설정: 확인 불가/);
+ click(root,'조회 기록 지우기');assert.equal(observations(),undefined);
+});
