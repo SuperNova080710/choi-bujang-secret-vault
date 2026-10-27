@@ -114,3 +114,20 @@ test('official student panel uses globally available layout rather than pc-statu
  for(const cls of ['grid-2','card','row','records','event','item-title','muted']) assert.match(css,new RegExp('(?:^|\\n)\\.'+cls+'\\s*\\{'));
  assert.match(css,/\.grid-2 \{ grid-template-columns: minmax\(0, 1fr\)/);
 });
+
+
+test('summary counts partial results and keeps evidence expanded through filter and refresh', async()=>{
+ const data=structuredClone(officialFixture);data.metrics.firewall={state:'unavailable',reason:'permission_denied'};
+ const root=createPcObservationView({api:{get:async()=>({ok:true,data})}});
+ assert.match(root.textContent,/다시 조회를 눌러 첫 기록/);
+ await click(root,'다시 조회');
+ assert.match(root.textContent,/읽은 항목 5\/6 · 확인 불가 1개 · 보관 기록 1\/30회/);
+ const evidence=()=>nodes(root).find(n=>n.attrs['data-metric']==='cpu').children.find(n=>n.tag==='details');
+ evidence().open=true;
+ const filter=nodes(root).find(n=>n.tag==='select');filter.value='unknown';filter.listeners.change();
+ assert.equal(evidence().open,true);
+ await click(root,'다시 조회');assert.equal(evidence().open,true);
+ assert.match(root.textContent,/보관 기록 2\/30회/);
+ evidence().open=false;filter.listeners.change();assert.equal(evidence().open,false);
+ click(root,'조회 기록 지우기');assert.doesNotMatch(root.textContent,/읽은 항목 5/);
+});
