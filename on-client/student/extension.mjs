@@ -1081,6 +1081,27 @@ export function createPcObservationView({ api, request = (...args) => fetch(...a
     if (!knownCount) current.append(make('p', '읽은 항목이 없습니다. 아래 항목별 이유를 확인하고 다시 조회하세요.'));
     else if (knownCount < keys.length) current.append(make('p', '일부 항목만 읽었습니다. 확인 불가 항목을 정상으로 해석하지 마세요.'));
     current.append(make('p', (official ? '공식 PC 조회 · OS 정보는 응답에 포함되지 않습니다.' : '서버 OS: ' + latest.platform) + ' · 실측 조회 기록이며 현재 실시간 상태가 아닙니다.'));
+    const observations = make('section'); observations.setAttribute('aria-label', 'PC 관찰 요약');
+    observations.append(make('h3', '이번 조회에서 확인할 점'));
+    const list = make('ul'); list.className = 'plain-list';
+    let compared = 0;
+    for (const key of ['cpu', 'memory', 'disk']) {
+      const change = comparison(key, latest.metrics[key], rows[1]?.platform === latest.platform ? rows[1].metrics[key] : undefined);
+      if (change) { list.append(make('li', names[key] + ' · ' + change)); compared++; }
+    }
+    if (!compared) list.append(make('li', '자원 변화: 비교 가능한 이전 실측이 없습니다. 다시 조회하면 비교합니다.'));
+    const firewall = latest.metrics.firewall;
+    if (firewall.status === 'ok') {
+      const disabled = ['domain', 'private', 'public'].filter(key => firewall.value[key] === false);
+      list.append(make('li', disabled.length ? '꺼진 방화벽 프로필: ' + disabled.join(', ') + '. 설정 의도를 확인하세요.' : '꺼진 방화벽 프로필: 이번 조회에서 관찰되지 않았습니다. 안전 판정은 아닙니다.'));
+    } else list.append(make('li', '방화벽 설정: 확인 불가. 해당 카드의 이유를 확인하세요.'));
+    for (const key of official ? ['events'] : ['systemEvents', 'applicationEvents']) {
+      const event = latest.metrics[key];
+      list.append(make('li', names[key] + ': ' + event.label));
+    }
+    observations.append(list, make('p', '관찰 기준 시각: ' + time(latest.at)),
+      make('p', '수치 변화와 경고·오류 건수만으로 원인이나 침해를 판단할 수 없습니다. 0건도 이상 없음의 증거가 아닙니다.'));
+    current.append(observations);
     const cards = make('div'); cards.className = official ? 'grid-2' : 'pc-grid';
     for (const key of keys) {
       const row = latest.metrics[key], card = make('article'); card.className = official ? 'pc-metric card' : 'pc-metric'; card.setAttribute('data-state', row.status);
