@@ -1018,6 +1018,8 @@ export function createPcObservationView({ api, request = (...args) => fetch(...a
   root.append(title, intro, connection, actions, status, current, filterLabel, history, note);
   if (official) intro.textContent = '공식 PC 조회 기능으로 읽고, 학생 화면에서 최근 30회 기록과 직전 값을 비교합니다. 수동 조회이며 화면을 닫으면 기록이 사라집니다.';
   let rows = [], generation = 0, controller, timer;
+  const evidenceNodes = new Map();
+  const expandedEvidence = new Set();
   const names = { cpu: 'CPU 사용률', memory: '메모리 사용량', disk: '시스템 디스크 여유', network: '네트워크 어댑터', firewall: '방화벽 프로필 설정', systemEvents: 'System 경고·오류', applicationEvents: 'Application 경고·오류' };
   if (official) { names.disk = '앱 위치 디스크 여유'; names.network = '네트워크 구성'; delete names.systemEvents; delete names.applicationEvents; names.events = 'System·Application 합산 경고·오류'; }
   const keys = Object.keys(names);
@@ -1064,10 +1066,20 @@ export function createPcObservationView({ api, request = (...args) => fetch(...a
     return '직전 조회 대비 ' + (delta > 0 ? '+' : '') + delta.toFixed(1) + (key === 'disk' ? ' GiB' : '%p');
   }
   function draw() {
+    for (const [key, detail] of evidenceNodes) {
+      if (detail.open) expandedEvidence.add(key); else expandedEvidence.delete(key);
+    }
+    evidenceNodes.clear();
     current.replaceChildren(); history.replaceChildren();
-    if (!rows.length) { current.append(make('p', '저장된 PC 조회가 없습니다.')); return; }
+    if (!rows.length) { current.append(make('p', '저장된 PC 조회가 없습니다. 다시 조회를 눌러 첫 기록을 만드세요.')); return; }
     const latest = rows[0];
-    current.append(make('h3', '마지막 조회 · ' + time(latest.at)));
+    current.append(make('h3', '최근 조회 요약'));
+    const knownCount = keys.filter(key => latest.metrics[key].status === 'ok').length;
+    const overview = make('p', '읽은 항목 ' + knownCount + '/' + keys.length + ' · 확인 불가 ' + (keys.length - knownCount) + '개 · 보관 기록 ' + rows.length + '/30회');
+    overview.className = 'item-title';
+    current.append(overview, make('p', '마지막 측정 · ' + time(latest.at)));
+    if (!knownCount) current.append(make('p', '읽은 항목이 없습니다. 아래 항목별 이유를 확인하고 다시 조회하세요.'));
+    else if (knownCount < keys.length) current.append(make('p', '일부 항목만 읽었습니다. 확인 불가 항목을 정상으로 해석하지 마세요.'));
     current.append(make('p', (official ? '공식 PC 조회 · OS 정보는 응답에 포함되지 않습니다.' : '서버 OS: ' + latest.platform) + ' · 실측 조회 기록이며 현재 실시간 상태가 아닙니다.'));
     const cards = make('div'); cards.className = official ? 'grid-2' : 'pc-grid';
     for (const key of keys) {
@@ -1078,6 +1090,7 @@ export function createPcObservationView({ api, request = (...args) => fetch(...a
       const change = comparison(key, row, rows[1]?.platform === latest.platform ? rows[1].metrics[key] : undefined);
       if (change) { const delta = make('p', change); delta.className = official ? 'pc-change muted' : 'pc-change'; card.append(delta); }
       const detail = make('details'), heading = make('summary', '출처와 측정 시각');
+      detail.open = expandedEvidence.has(key); evidenceNodes.set(key, detail);
       detail.append(heading, make('p', row.source), make('p', time(row.observedAt))); card.append(detail); cards.append(card);
     }
     current.append(cards);
