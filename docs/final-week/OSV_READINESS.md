@@ -1,3 +1,5 @@
+> **2026-10-28 확인 반영:** 사용자 실제 OSV 조회 완료. jose 6.2.12에서 조회 시점 알려진 항목 없음, 제외 9건. 시각·잠금 파일 해시는 [최종 확인 기록](FINAL_SUBMISSION.md)에 있습니다. 아래 설정 절차를 이미 수행했으면 반복할 필요가 없습니다.
+
 # OSV 조회 설정과 확인 절차
 
 기준: 2026-10-27, 공식 0.2.19 소스. 실제 외부 OSV 조회 성공 보고가 아닙니다.
@@ -13,7 +15,7 @@
 - lock의 정확한 버전·공개 registry tarball 정보와 설치된 `package.json`의 이름·버전이 일치해야 합니다.
 - 조회 본문은 승인된 패키지 이름·정확한 버전·ecosystem뿐입니다. 전체 lock, 토큰, 로컬 경로는 OSV에 보내지 않습니다.
 
-`on-client`는 외부 npm 의존성이 없는 앱입니다. 앱 폴더 자체와 검사할 npm 프로젝트를 혼동하지 마세요. 저장소 루트의 package.json에는 `jose`, `@supabase/supabase-js`가 있지만 Windows에 실제 설치됐는지는 아직 확인하지 않았습니다. 설치 파일이 없으면 임의로 설치·업데이트하지 말고 먼저 대상 프로젝트를 정합니다.
+`on-client`는 외부 npm 의존성이 없는 앱입니다. 앱 폴더 자체와 검사할 npm 프로젝트를 혼동하지 마세요. 저장소 루트의 package.json에는 `jose`, `@supabase/supabase-js`가 있지만 사용자는 이후 루트 의존성을 설치하고 jose 실제 조회를 확인했습니다. 설치 파일이 없으면 임의로 설치·업데이트하지 말고 먼저 대상 프로젝트를 정합니다.
 
 ## Windows: 외부 요청 없이 설정 경로 먼저 확인
 
@@ -58,6 +60,6 @@ Remove-Item Env:ON_APPROVED_PUBLIC_PACKAGES -ErrorAction SilentlyContinue
 
 ## 검증 근거
 
-`node --test test/osv-configuration.test.mjs test/stage20-vulnerabilities.test.mjs`: 17개 통과. 임시 가상 프로젝트와 모의 OSV transport로 미설정·빈 승인·설치 일치·불일치를 검사했습니다. 운영 OSV 요청, 사용자 Windows 설정, 실제 설치 버전 검증은 미실시입니다.
+`node --test test/osv-configuration.test.mjs test/stage20-vulnerabilities.test.mjs`: 17개 통과. 임시 가상 프로젝트와 모의 OSV transport로 미설정·빈 승인·설치 일치·불일치를 검사했습니다. 이 17개 검사는 모의 시험입니다. 이후 사용자 Windows 실제 조회 결과는 위 최종 확인 기록에 별도로 반영했습니다.
 
 소스: `on-client/src/server.mjs`, `on-client/src/vulnerabilities/project-scan.mjs`, `on-client/src/vulnerabilities/osv.mjs`, `on-client/tools/start-alekov.ps1`.

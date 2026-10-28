@@ -31,26 +31,13 @@ test('build identity uses Vercel Git and deployment metadata', () => {
   assert.throws(() => deploymentIdentity({ ...env, VERCEL_GIT_COMMIT_SHA: 'short' }, config));
 });
 
-test('first attack check reads public data.json without credentials', async () => {
+test('현재 누적 점검은 과거 1단계 공개 자료 조회를 실행하지 않는다', async () => {
   const originalFetch = globalThis.fetch;
-  let requestUrl;
-  let options;
+  let called = false;
   try {
-    globalThis.fetch = async (url, init) => {
-      requestUrl = String(url);
-      options = init;
-      return new Response(JSON.stringify({ sampleMarker: 'SAMPLE_NOTE_1', notes: [{ title: '가상' }] }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      });
-    };
-    const [result] = await runAttackChecks(config);
-    assert.equal(requestUrl, 'https://student-defense.vercel.app/data.json');
-    assert.equal(options.redirect, 'error');
-    assert.match(result.observed, /확인 표시가 보임/u);
-    globalThis.fetch = async () => new Response('<html>not the data</html>', { status: 200 });
-    const [failed] = await runAttackChecks(config);
-    assert.match(failed.observed, /보이지 않음/u);
+    globalThis.fetch = async () => { called = true; throw new Error('unexpected network request'); };
+    await assert.rejects(runAttackChecks(config), /이 단계의 공격 점검/);
+    assert.equal(called, false);
   } finally {
     globalThis.fetch = originalFetch;
   }
