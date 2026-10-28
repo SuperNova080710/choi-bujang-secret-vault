@@ -1,4 +1,4 @@
-> **현재 상태 · 2026-10-27:** Windows 공식 PC 6항목 실측·비교·필터·삭제·재조회·출처 펼침 유지와 계정·AI API 점검(verified)을 사용자 확인했습니다. SDP는 설정 미제공으로 보류, GitHub 실제 연동·OSV 실제 조회는 미확인입니다. 마무리 과제는 전달받은 공지에 따라 저장소 URL+커밋 SHA로 제출하며 포장은 선행 조건이 아닙니다. [현재 인수인계](docs/final-week/WAITING_HANDOFF.md) · [Windows 확인](docs/final-week/LOCAL_ACCEPTANCE.md) · [앱 소개·시연](docs/final-week/RELEASE_KIT.md)
+> **최종 제출 준비 · 2026-10-28:** Windows PC 6항목·비교·필터·삭제·재조회·새 관찰 요약과 계정·AI API 점검, 실제 OSV jose 6.2.12 조회를 사용자 확인했습니다. 최신 과제는 GitHub 저장소 URL과 40자리 SHA로 제출합니다. 이번 과정에서는 포장·업데이트 도구를 실행하지 않으며 SDP 인증서 발급도 하지 않습니다. [최종 제출·완성 기록](docs/final-week/FINAL_SUBMISSION.md) · [전체 검토](docs/final-week/FINAL_REVIEW.md) · [Windows 확인](docs/final-week/LOCAL_ACCEPTANCE.md)
 
 <!-- STUDENT_HISTORY_START -->
 ## 0~22단계 작업 이력과 현재 상태
